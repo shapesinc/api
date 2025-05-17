@@ -68,6 +68,31 @@ const response = await shapes_client.chat.completions.create({
 console.log(response);
 ```
 
+### C#
+```csharp
+using OpenAI;
+
+var client = new ChatClient(
+    "shapesinc/<shape-username>",
+    new ApiKeyCredential("<your-API-key>"),
+    new OpenAIClientOptions { Endpoint = new Uri("https://api.shapes.inc/v1/") }
+);
+
+var chatMessages = new List<ChatMessage>();
+
+chatMessages.Add(new UserChatMessage.ChatMessageContentPart.CreateTextPart("Hello!"));
+// or:
+chatMessages.Add(new UserChatMessage.ChatMessageContentPart
+	.CreateTextPart("""{"role": "user", "content": "Hello!"}"""));
+
+var completion = await client.CompleteChatAsync(chatMessages);
+
+Console.WriteLine(completion.Value.Content[0].Text)
+// or:
+foreach (var content in completion.Value.Content)
+	Console.WriteLine(content.Text)
+```
+
 ### 🔄 CURL
 
 ```bash
