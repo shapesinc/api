@@ -196,11 +196,11 @@ Note: Shapes set on Premium Engines **WILL** use credits when accessed via API.
 - [x] IRC
 - [x] Chess
 - [x] Voice
+- [x] GitHub (to review PRs)
 
 ## Requested Integrations
 We're looking for developer contributions to build:
 - [ ] Reddit
-- [ ] GitHub (to review PRs)
 - [ ] Threads
 - [ ] Roblox
 - [ ] Minecraft
