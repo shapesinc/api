@@ -1093,4 +1093,68 @@ button.debug,
     }
 }
 
+@media (max-width: 600px) {
+  .container,
+  .setup-card,
+  .interview-section {
+    padding: 1rem 0.5rem;
+    border-radius: 0.7rem;
+    max-width: 100vw;
+  }
+
+  .setup-card {
+    padding: 1rem 0.5rem;
+    min-width: 0;
+  }
+
+  .interview-section {
+    padding: 1rem 0.5rem;
+  }
+
+  .chat-container {
+    height: 60vh;
+    padding: 0.5rem 0.2rem 0.2rem 0.2rem;
+    margin-right: 0;
+  }
+
+  .chat-messages {
+    padding: 0.5rem;
+    font-size: 0.98rem;
+  }
+
+  .message,
+  .interviewer-message,
+  .user-message {
+    font-size: 0.95rem;
+    padding: 0.7rem 0.7rem;
+    max-width: 100%;
+  }
+
+  .primary-button,
+  .secondary-button {
+    width: 100%;
+    font-size: 1rem;
+    padding: 0.7rem 0;
+  }
+
+  .input-container {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .code-panel {
+    width: 100vw !important;
+    min-width: 0;
+    left: 0;
+    right: 0;
+    border-radius: 1rem 1rem 0 0;
+    padding: 0.5rem;
+  }
+
+  .CodeMirror {
+    font-size: 0.95rem !important;
+    min-height: 120px;
+  }
+}
+
  
