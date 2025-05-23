@@ -3,6 +3,7 @@
 import http from 'node:http';
 import https from 'node:https';
 import { URL } from 'node:url';
+import zlib from 'node:zlib';
 import { getApiServerBaseUrl } from './src/utils.js';
 import chalk from 'chalk';
 
@@ -190,12 +191,31 @@ function prettyPrintResponse(res, bodyBuf) {
   // Body
   if (bodyBuf && bodyBuf.length) {
     console.log(chalk.bold('Body:'));
-    const str = bodyBuf.toString('utf8');
-    try {
-      const obj = JSON.parse(str);
-      prettyPrintJson(obj, { isResponse: true });
-    } catch {
-      console.log(str);
+    
+    // Check if response is gzipped
+    const contentEncoding = res.headers['content-encoding'];
+    if (contentEncoding === 'gzip') {
+      try {
+        const decompressed = zlib.gunzipSync(bodyBuf);
+        const str = decompressed.toString('utf8');
+        try {
+          const obj = JSON.parse(str);
+          prettyPrintJson(obj, { isResponse: true });
+        } catch {
+          console.log(str);
+        }
+      } catch (err) {
+        console.log(chalk.red('Failed to decompress gzipped response:'), err.message);
+        console.log(chalk.gray('Raw gzipped data length:'), bodyBuf.length);
+      }
+    } else {
+      const str = bodyBuf.toString('utf8');
+      try {
+        const obj = JSON.parse(str);
+        prettyPrintJson(obj, { isResponse: true });
+      } catch {
+        console.log(str);
+      }
     }
   }
 }

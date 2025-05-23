@@ -1,0 +1,49 @@
+{
+    "name": "shapes-cli",
+    "version": "1.0.0",
+    "description": "A CLI application for interacting with Shapes API",
+    "main": "dist/index.js",
+    "type": "module",
+    "scripts": {
+        "start": "node dist/index.js",
+        "start:dev": "ts-node src/index.tsx",
+        "login": "node dist/index.js login",
+        "login:dev": "ts-node src/index.tsx login",
+        "logout": "node dist/index.js logout",
+        "logout:dev": "ts-node src/index.tsx logout",
+        "build": "tsc",
+        "dev": "ts-node src/index.tsx",
+        "typecheck": "tsc --noEmit",
+        "lint": "eslint src --ext .ts,.tsx",
+        "lint:fix": "eslint src --ext .ts,.tsx --fix"
+    },
+    "dependencies": {
+        "axios": "^1.9.0",
+        "boxen": "^8.0.1",
+        "chalk": "^5.4.1",
+        "commander": "^14.0.0",
+        "dotenv": "^16.5.0",
+        "form-data": "^4.0.2",
+        "ink": "^5.2.1",
+        "ink-select-input": "^6.2.0",
+        "ink-text-input": "^6.0.0",
+        "inquirer": "^12.6.1",
+        "open": "^10.1.2",
+        "openai": "^4.103.0",
+        "react": "^18.3.1"
+    },
+    "devDependencies": {
+        "@eslint/js": "^9.27.0",
+        "@types/inquirer": "^9.0.8",
+        "@types/node": "^22.15.21",
+        "@types/react": "^18.3.12",
+        "@typescript-eslint/eslint-plugin": "^8.32.1",
+        "@typescript-eslint/parser": "^8.32.1",
+        "eslint": "^9.27.0",
+        "eslint-plugin-react": "^7.37.5",
+        "eslint-plugin-react-hooks": "^5.2.0",
+        "npm-check-updates": "^18.0.1",
+        "ts-node": "^10.9.2",
+        "typescript": "^5.8.3"
+    }
+}
