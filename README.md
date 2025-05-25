@@ -111,7 +111,7 @@ curl -X POST https://api.shapes.inc/v1/chat/completions \
 | Feature | Details |
 |---------|---------|
 | Endpoints | `/chat/completions` |
-| Rate Limits | 5 RPM (request increase [here](https://docs.google.com/forms/d/e/1FAIpQLScGLeRk6snViRPslXbbUaMDwubcBhmcJ6opq7wFvPEp-EbO3g/viewform)) |
+| Rate Limits | 20 RPM (request increase [here](https://docs.google.com/forms/d/e/1FAIpQLScGLeRk6snViRPslXbbUaMDwubcBhmcJ6opq7wFvPEp-EbO3g/viewform)) |
 | Headers | `X-User-Id` for user identification, `X-Channel-Id` for conversation context |
 | Response Format | Standard OpenAI-compatible JSON response |
 
@@ -218,6 +218,7 @@ Note: Shapes set on Premium Engines **WILL** use credits when accessed via API.
 - [x] IRC
 - [x] Chess
 - [x] Voice
+- [x] Twitch
 - [x] GitHub (to review PRs)
 
 ## Requested Integrations
@@ -226,7 +227,6 @@ We're looking for developer contributions to build:
 - [ ] Threads
 - [ ] Roblox
 - [ ] Minecraft
-- [ ] Twitch
 - [ ] LinkedIn
 - [ ] Microsoft Teams
 - [ ] WeChat
