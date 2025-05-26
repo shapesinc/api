@@ -4,14 +4,14 @@ $config = require('config.php');
 // Obsługa POST i GET
 $input = json_decode(file_get_contents('php://input'), true);
 if (!$input) {
-    $input = $_GET; // Spróbuj odczytać dane z GET
+    $input = $_GET; // read info from get
 }
 
-// Sprawdzenie poprawności wejścia
+// check if found prompt
 if (!isset($input['prompt'])) {
     http_response_code(400);
     header('Content-Type: application/json');
-    echo json_encode(['error' => 'Missing required field: prompt']);
+    echo json_encode(['error' => 'Missing required field: prompt']); //probably need return image with error
     exit;
 }
 
@@ -68,9 +68,9 @@ if (isset($data['choices'][0]['message']['content'])) {
     $image_url = $matches[0] ?? null;
 
     if ($image_url) {
-        echo $image_url; // tylko URL, jeśli jest
+        echo $image_url; // if find url then show this
     } else {
-        echo $reply; // tylko tekst, jeśli brak URL
+        echo $reply; // if no url probably good iea would replace this with error image
     }
 } else {
     echo "No response received or error: " . json_encode($data);
