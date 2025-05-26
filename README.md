@@ -115,6 +115,23 @@ curl -X POST https://api.shapes.inc/v1/chat/completions \
 | Headers | `X-User-Id` for user identification, `X-Channel-Id` for conversation context |
 | Response Format | Standard OpenAI-compatible JSON response |
 
+## User Identification and Authorization
+
+### Custom Headers
+Shapes API supports two types of custom headers:
+
+1. `X-User-Id` for user identification - We HIGHLY recommend using custom headers whenever you're using the Shapes API in a user-facing project. By default, the Shapes API treats a user as the person who generated the API key. This can result in conversation context mix-ups and other risks, such as shape memory loss if a user uses the `!reset` command on the API.
+
+2. `X-Channel-Id` for conversation context - Using this header is recommended for projects that support more than one conversation context per user.
+
+You can find custom header examples [HERE](https://github.com/shapesinc/shapes-api/blob/main/LLMS.txt).
+
+### Shapes Inc Authorization
+
+While custom headers anonymize users, Shapes authorization connects the shapes to the user's shapes.inc account. This way, the memory of conversations with shapes on the API is saved to the user's account, and the shape identifies the user by their shapes.inc name. This feature also allows you to use user personas available on shapes.inc.
+
+You can learn more and review examples [HERE](https://github.com/shapesinc/shapes-api/tree/main/examples/websites/shape-auth-example).
+
 ## Supported Commands
 
 Shapes now support the following commands:
