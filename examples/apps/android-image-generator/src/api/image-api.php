@@ -15,7 +15,7 @@ if (!isset($input['prompt'])) {
     exit;
 }
 
-$model = 'shapesinc/testimagegenerator'; // you can put own Model, prompt for it inside prompt.txt
+$model = $config['image_api']['model']; // you can put own Model, prompt for it inside prompt.txt
 $apiKey = $config['image_api']['apikey'];
 $endpoint = rtrim($config['image_api']['endpoint'], '/') . '/chat/completions';
 
