@@ -21,7 +21,7 @@ $endpoint = rtrim($config['image_api']['endpoint'], '/') . '/chat/completions';
 
 $prompt = $input['prompt'];
 
-// Utwórz dane zapytania
+// prepairing prompt
 $data = [
     "model" => $model,
     "messages" => [
@@ -32,11 +32,11 @@ $data = [
     ]
 ];
 
-// generate random userid
+// generate random userid and channel
 $randomNumber = mt_rand(1000000000, 9999999999);
 $randomNumber2 = mt_rand(1000000000, 9999999999);
 
-// Wysyłka cURL
+// send curl
 $ch = curl_init($endpoint);
 curl_setopt_array($ch, [
     CURLOPT_RETURNTRANSFER => true,
