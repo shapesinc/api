@@ -15,8 +15,8 @@ if (!isset($input['prompt'])) {
     exit;
 }
 
-$model = 'shapesinc/promptchecker'; // you can put own Model instruction for personality in file prompt.txt
-$apiKey = $config['image_api']['apikey'];
+$model = $config['text_api']['apikey']; // you can put own Model instruction for personality in file prompt.txt
+$apiKey = $config['text_api']['model'];
 $endpoint = rtrim($config['image_api']['endpoint'], '/') . '/chat/completions';
 
 $prompt = $input['prompt'];
