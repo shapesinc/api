@@ -65,7 +65,7 @@
     </style>
 </head>
 <body>
-    <h1>Image Generator Test with Prompt Checker</h1>
+    <h1>Shape Api Image generator with Prompt Checker</h1>
     <form id="imageForm">
         <input type="text" name="prompt" placeholder="Enter image prompt" required><br><br>
         <button type="submit">Generate Image</button><br><br>
