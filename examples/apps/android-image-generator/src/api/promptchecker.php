@@ -4,14 +4,14 @@ $config = require('config.php');
 // Obsługa POST i GET
 $input = json_decode(file_get_contents('php://input'), true);
 if (!$input) {
-    $input = $_GET; // Spróbuj odczytać dane z GET
+    $input = $_GET; // take get
 }
 
-// Sprawdzenie poprawności wejścia
+// checking if corrent primpt
 if (!isset($input['prompt'])) {
     http_response_code(400);
     header('Content-Type: application/json');
-    echo json_encode(['error' => 'Missing required field: prompt']);
+    echo json_encode(['error' => 'Missing required field: prompt']); //probably good idea would be send error code image to system instead
     exit;
 }
 
@@ -21,7 +21,7 @@ $endpoint = rtrim($config['image_api']['endpoint'], '/') . '/chat/completions';
 
 $prompt = $input['prompt'];
 
-// Utwórz dane zapytania
+// prepair question to api
 $data = [
     "model" => $model,
     "messages" => [
@@ -32,11 +32,11 @@ $data = [
     ]
 ];
 
-// Generowanie losowych numerków dla nagłówków
+// generating random userid and channel
 $randomNumber = mt_rand(1000000000, 9999999999);
 $randomNumber2 = mt_rand(1000000000, 9999999999);
 
-// Wysyłka cURL
+// send curl
 $ch = curl_init($endpoint);
 curl_setopt_array($ch, [
     CURLOPT_RETURNTRANSFER => true,
@@ -54,7 +54,7 @@ $response = curl_exec($ch);
 $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 curl_close($ch);
 
-// Przygotowanie odpowiedzi
+// prepairing reply
 header('Content-Type: text/plain');
 http_response_code($http_code);
 
@@ -62,7 +62,7 @@ $data = json_decode($response, true);
 
 if (isset($data['choices'][0]['message']['content'])) {
     $reply = $data['choices'][0]['message']['content'];
-    echo $reply; // tylko tekst, jeśli brak URL
+    echo $reply; //prividing reply
     
 } else {
     echo "No response received or error: " . json_encode($data);
