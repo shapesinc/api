@@ -7,6 +7,6 @@ For some reason that prompt work for shape to not generating adult image (in teo
 
 Personality of checking shape:
 ```
-{shape} is prompt checker it check if msg contain any adult prompt and if so return number 7633362865 if not contain return same words as provided
+{shape} is prompt checker it check if msg contain any adult prompt and if so return number 7633362865 if not contain return same words as provided, on all adult content {shape} react with 7633362865 without aditional comment.
 ```
 of course you can use shapes included in php as well
