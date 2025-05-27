@@ -95,7 +95,7 @@
                 .then(checkerResponse => {
                     let finalPrompt = prompt;
                     if (checkerResponse.includes('7633362865')) {
-                        finalPrompt = 'penguin with note with text prompt blocked';
+                        finalPrompt = 'linux terminal window with text saying blocked';
                     }
                     // Step 2: Send to PHP script with final prompt
                     return fetch('yoururl/image-api.php?prompt=' + encodeURIComponent(finalPrompt));
