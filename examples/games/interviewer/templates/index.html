@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tech Interview Simulator</title>
+    <link rel="icon" href="{{ url_for('static', filename='favicon.png') }}" type="image/png">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/theme/monokai.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Tech Interview Simulator</h1>
+            <p>Practice your technical interview skills with Carmack and Linus</p>
+            <p class="interview-info">In text mode: Each interview consists of 5 technical questions followed by a pass/fail evaluation. Score more than 30 points to pass.</p>
+            <p class="interview-info">In voice mode: Enjoy a conversational interview with audio responses and speech input.</p>
+        </header>
+
+        <div id="setup-section" class="setup-section">
+            <div class="setup-card">
+                <h2>Ready to start?</h2>
+                <div class="interview-mode-container">
+                    <div class="form-group-inline">
+                        <label for="interview-mode-select">Interview Mode:</label>
+                        <select id="interview-mode-select">
+                            <option value="text" selected>Text Mode (with scoring)</option>
+                            <option value="voice">Voice Mode (with mic input)</option>
+                        </select>
+                    </div>
+                    <div class="mode-description">
+                        <div class="voice-mode-info">
+                            <p>Voice mode: You can speak by clicking the microphone button, and Carmack will respond with audio</p>
+                        </div>
+                        <div class="scoring-info">
+                            <p>Note: Scoring is only available in text mode</p>
+                        </div>
+                    </div>
+                </div>
+                <button id="start-interview" class="primary-button">Start Interview</button>
+            </div>
+        </div>
+
+        <div id="interview-section" class="interview-section">
+            <div class="chat-layout">
+                <div class="chat-container">
+                    <div id="chat-messages" class="chat-messages"></div>
+                    <div class="input-container">
+                        <textarea id="user-input" placeholder="Type your answer here..." rows="3"></textarea>
+                        <button id="send-message" class="primary-button">Send</button>
+                        <button id="mic-button" class="mic-button" aria-label="Record voice message">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.91-3c-.49 0-.9.39-.98.88C16.58 14.83 14.5 16 12 16s-4.58-1.17-4.93-4.12c-.08-.49-.49-.88-.98-.88-.55 0-1 .45-1 1 0 2.78 2.02 5.09 4.75 5.47V21h-2c-.55 0-1 .45-1 1s.45 1 1 1h6c.55 0 1-.45 1-1s-.45-1-1-1h-2v-2.53c2.73-.38 4.75-2.69 4.75-5.47 0-.55-.45-1-1-1z"/></svg>
+                        </button>
+                      
+                    </div>
+                </div>
+                <button id="toggle-code-panel" class="toggle-panel-btn" aria-label="Toggle code editor">
+                    <span class="toggle-text">Code</span>
+                    <svg class="toggle-arrow" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M9 18l6-6-6-6"/>
+                    </svg>
+                </button>
+                <div id="code-panel" class="code-panel">
+                    <div class="code-panel-header">
+                        <h3>Code Editor</h3>
+                        <p>Write and test your code solutions here</p>
+                        <div class="language-select-group">
+                            <label for="language-select">Language:</label>
+                            <select id="language-select">
+                                <option value="python">Python</option>
+                                <option value="c">C</option>
+                                <option value="cpp">C++</option>
+                                <option value="javascript">JavaScript</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="code-editor-container">
+                        <textarea id="code-input"></textarea>
+                        <button id="send-code" class="primary-button">Send Code</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/python/python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/clike/clike.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/javascript/javascript.min.js"></script>
+</body>
+</html> 

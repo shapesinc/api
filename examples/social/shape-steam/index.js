@@ -73,7 +73,7 @@ client.on('friendMessage', async (steamID, message) => {
         ];
     } else if (/\.(mp3|wav|ogg)$/i.test(message)) {
         content = [
-            { type: 'text', text: 'please transcribe and respond to this audio message' },
+            { type: 'text', text: 'please respond to this audio message. Are you able to access it?' },
             { type: 'audio_url', audio_url: { url: message.trim() } },
         ];
     } else {
