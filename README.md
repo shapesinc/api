@@ -213,6 +213,61 @@ You can send audio URLs in the API request using this format:
 
 Supported audio formats: mp3, wav, ogg
 
+## API Endpoints
+### Get Shape Profile Data
+Retrieve detailed information about any shape using their username.
+
+**Endpoint:**
+```
+GET https://api.shapes.inc/shapes/public/{username}
+```
+
+**Cross-Platform Examples:**
+
+**Linux/macOS/Git Bash:**
+```bash
+curl "https://api.shapes.inc/shapes/public/{username}"
+```
+
+**Windows Command Prompt:**
+```cmd
+curl "https://api.shapes.inc/shapes/public/einstein"
+```
+
+**Windows PowerShell:**
+```powershell
+curl.exe "https://api.shapes.inc/shapes/public/{username}"
+```
+
+**Example code:**
+```javascript
+async function getShapeProfile(username = 'tenshi') { 
+    try {
+        const response = await fetch(`https://api.shapes.inc/shapes/public/${username}`);
+        const data = await response.json();
+        
+        // key fields to be extracted
+        const description = data.search_description;
+        const avatar = data.avatar || data.avatar_url;
+        
+        console.log(`Name: ${data.name}`);
+        console.log(`Description: ${description}`);
+        console.log(`Avatar: ${avatar}`);
+        
+        return { description, avatar };
+    } catch (error) {
+        console.log(`Error: ${error.message}`);
+    }
+}
+
+getShapeProfile(process.argv[2]); 
+```
+**Output:**
+```plaintext
+Name: tenshi
+Description: yo! am tenshi, am better am cooler
+Avatar: https://files.shapes.inc/api/files/avatar_aca2e51a-e79c-417a-9515-be27fa624a0c.png
+```
 ## Important Notes
 
 ### Current Limitations
