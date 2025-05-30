@@ -76,6 +76,15 @@ function prettyPrintJson(obj, { isResponse = false } = {}) {
       } else {
         console.log(indent + chalk.gray(trimmed));
       }
+    } else if (trimmed.startsWith('"name"')) {
+      // highlight tool/function names
+      const partsName = trimmed.match(/^("name":\s*)(".*")(,?)$/);
+      if (partsName) {
+        const [, keyPart, valuePart, comma] = partsName;
+        console.log(indent + chalk.gray(keyPart) + chalk.yellow(valuePart) + (comma || ''));
+      } else {
+        console.log(indent + chalk.gray(trimmed));
+      }
     } else if (isResponse && trimmed.startsWith('"finish_reason"')) {
       const parts = trimmed.match(/^"finish_reason":\s*"([^"]+)"(,?)$/);
       if (parts) {

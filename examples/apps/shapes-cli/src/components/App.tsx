@@ -864,7 +864,35 @@ export const App = () => {
       }
 
       await clearToken();
-      setClient(null);
+      
+      // Re-initialize with API key if available
+      const discoveredConfig = await initConfig();
+      if (discoveredConfig.apiKey) {
+        const clientConfig: any = {
+          apiKey: discoveredConfig.apiKey,
+          baseURL: discoveredConfig.apiUrl,
+          defaultHeaders: {
+            'X-App-ID': discoveredConfig.appId,
+          },
+        };
+
+        // Add user ID header if set
+        if (userId) {
+          clientConfig.defaultHeaders['X-User-ID'] = userId;
+        }
+
+        // Add channel ID header if set
+        if (channelId) {
+          clientConfig.defaultHeaders['X-Channel-ID'] = channelId;
+        }
+
+        const shapesClient = new OpenAI(clientConfig);
+        setClient(shapesClient);
+        setAuthStatus(`API Key (${discoveredConfig.apiKey.slice(-4)})`);
+      } else {
+        setClient(null);
+        setAuthStatus('No Auth');
+      }
       
       const logoutMessage: Message = {
         type: 'system',
