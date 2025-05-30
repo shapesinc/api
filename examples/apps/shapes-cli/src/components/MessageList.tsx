@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Box, Text } from 'ink';
 import { renderCodeBlock } from '../utils/rendering.js';
+import open from 'open';
 
 interface Message {
   type: 'user' | 'assistant' | 'system' | 'tool';
@@ -23,6 +24,30 @@ export const MessageList = ({ messages, shapeName }: MessageListProps) => {
     }
     return shapeName ? `${shapeName}:` : 'Assistant:';
   };
+
+  const detectAndOpenImages = async (content: string) => {
+    // Match image URLs (common image extensions)
+    const imageUrlRegex = /(https?:\/\/[^\s]+\.(jpg|jpeg|png|gif|webp|svg|bmp))/gi;
+    const matches = content.match(imageUrlRegex);
+    
+    if (matches) {
+      for (const imageUrl of matches) {
+        try {
+          await open(imageUrl);
+        } catch (error) {
+          console.warn('Failed to open image URL:', imageUrl, error);
+        }
+      }
+    }
+  };
+
+  // Auto-open images in new assistant messages
+  useEffect(() => {
+    const lastMessage = messages[messages.length - 1];
+    if (lastMessage && lastMessage.type === 'assistant') {
+      detectAndOpenImages(lastMessage.content);
+    }
+  }, [messages]);
 
   const renderMessage = (message: Message, index: number) => {
     const formattedContent = message.content.replace(

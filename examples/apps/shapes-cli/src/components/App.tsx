@@ -22,11 +22,6 @@ interface Message {
   tool_call_id?: string;
 }
 
-interface ChatTool {
-  name: string;
-  description: string;
-  parameters: Record<string, unknown>;
-}
 
 interface QueuedImage {
   dataUrl: string;
@@ -42,6 +37,8 @@ interface Tool {
 }
 
 const TOOLS_STATE_FILE = path.join(os.homedir(), '.shapes-cli', 'tools-state.json');
+const USER_ID_FILE = path.join(os.homedir(), '.shapes-cli', 'user-id.txt');
+const CHANNEL_ID_FILE = path.join(os.homedir(), '.shapes-cli', 'channel-id.txt');
 
 const saveToolsState = async (tools: Tool[]): Promise<void> => {
   try {
@@ -52,9 +49,9 @@ const saveToolsState = async (tools: Tool[]): Promise<void> => {
       return acc;
     }, {} as Record<string, boolean>);
     await fs.writeFile(TOOLS_STATE_FILE, JSON.stringify(toolsState), 'utf-8');
-  } catch (error) {
+  } catch (_error) {
     // Ignore save errors to not break the app
-    console.warn('Failed to save tools state:', error);
+    console.warn('Failed to save tools state:', _error);
   }
 };
 
@@ -62,9 +59,69 @@ const loadToolsState = async (): Promise<Record<string, boolean>> => {
   try {
     const data = await fs.readFile(TOOLS_STATE_FILE, 'utf-8');
     return JSON.parse(data);
-  } catch (error) {
+  } catch (_error) {
     // Return empty state if file doesn't exist or is invalid
     return {};
+  }
+};
+
+const saveUserId = async (userId: string): Promise<void> => {
+  try {
+    const dir = path.dirname(USER_ID_FILE);
+    await fs.mkdir(dir, { recursive: true });
+    if (userId) {
+      await fs.writeFile(USER_ID_FILE, userId, 'utf-8');
+    } else {
+      // Remove file if userId is empty
+      try {
+        await fs.unlink(USER_ID_FILE);
+      } catch (_error) {
+        // Ignore if file doesn't exist
+      }
+    }
+  } catch (_error) {
+    // Ignore save errors to not break the app
+    console.warn('Failed to save user ID:', _error);
+  }
+};
+
+const loadUserId = async (): Promise<string> => {
+  try {
+    const data = await fs.readFile(USER_ID_FILE, 'utf-8');
+    return data.trim();
+  } catch (_error) {
+    // Return empty string if file doesn't exist or is invalid
+    return '';
+  }
+};
+
+const saveChannelId = async (channelId: string): Promise<void> => {
+  try {
+    const dir = path.dirname(CHANNEL_ID_FILE);
+    await fs.mkdir(dir, { recursive: true });
+    if (channelId) {
+      await fs.writeFile(CHANNEL_ID_FILE, channelId, 'utf-8');
+    } else {
+      // Remove file if channelId is empty
+      try {
+        await fs.unlink(CHANNEL_ID_FILE);
+      } catch (_error) {
+        // Ignore if file doesn't exist
+      }
+    }
+  } catch (_error) {
+    // Ignore save errors to not break the app
+    console.warn('Failed to save channel ID:', _error);
+  }
+};
+
+const loadChannelId = async (): Promise<string> => {
+  try {
+    const data = await fs.readFile(CHANNEL_ID_FILE, 'utf-8');
+    return data.trim();
+  } catch (_error) {
+    // Return empty string if file doesn't exist or is invalid
+    return '';
   }
 };
 
@@ -72,7 +129,6 @@ export const App = () => {
   const { stdout } = useStdout();
   const [messages, setMessages] = useState<Message[]>([]);
   const [client, setClient] = useState<OpenAI | null>(null);
-  const [tools, setTools] = useState<unknown[]>([]);
   const [images, setImages] = useState<QueuedImage[]>([]);
   const [availableTools, setAvailableTools] = useState<Tool[]>([]);
   const [shapeName, setShapeName] = useState<string>('');
@@ -80,6 +136,8 @@ export const App = () => {
   const [endpoint, setEndpoint] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [inputMode, setInputMode] = useState<'normal' | 'awaiting_auth'>('normal');
+  const [userId, setUserId] = useState<string>('');
+  const [channelId, setChannelId] = useState<string>('');
   
   const terminalHeight = stdout?.rows || 24;
   const terminalWidth = stdout?.columns || 80;
@@ -111,6 +169,16 @@ export const App = () => {
           clientConfig.defaultHeaders['X-User-Auth'] = token;
         }
 
+        // Add user ID header if set
+        if (userId) {
+          clientConfig.defaultHeaders['X-User-ID'] = userId;
+        }
+
+        // Add channel ID header if set
+        if (channelId) {
+          clientConfig.defaultHeaders['X-Channel-ID'] = channelId;
+        }
+
         const shapesClient = new OpenAI(clientConfig);
         setClient(shapesClient);
 
@@ -118,18 +186,26 @@ export const App = () => {
         setShapeName(discoveredConfig.model);
         if (token) {
           setAuthStatus(`Authenticated (${token.slice(-4)})`);
+        } else if (discoveredConfig.apiKey) {
+          setAuthStatus(`API Key (${discoveredConfig.apiKey.slice(-4)})`);
         } else {
-          setAuthStatus('API Key');
+          setAuthStatus('No Auth');
         }
         setEndpoint(discoveredConfig.apiUrl);
 
         // Load tools and plugins
-        const [loadedTools] = await Promise.all([
+        const [_loadedTools] = await Promise.all([
           loadTools(),
           loadPlugins(),
         ]);
-        setTools(loadedTools);
+        // Note: setTools call removed as tools are not used in the component
         
+        // Load saved user ID and channel ID
+        const savedUserId = await loadUserId();
+        const savedChannelId = await loadChannelId();
+        setUserId(savedUserId);
+        setChannelId(savedChannelId);
+
         // Initialize test tools with saved state
         const savedToolsState = await loadToolsState();
         const testTools: Tool[] = [
@@ -163,7 +239,7 @@ export const App = () => {
     };
 
     initialize();
-  }, []);
+  }, [userId, channelId]);
 
   const handleSendMessage = async (content: string, messageImages?: string[]) => {
     // Handle awaiting auth token
@@ -511,12 +587,21 @@ export const App = () => {
         }
         break;
       }
-      case 'clear': {
+      case 'images:clear': {
         const clearedCount = images.length;
         setImages([]);
         const clearMessage: Message = {
           type: 'system',
           content: clearedCount > 0 ? `Cleared ${clearedCount} queued image${clearedCount > 1 ? 's' : ''}.` : 'No images to clear.'
+        };
+        setMessages(prev => [...prev, clearMessage]);
+        break;
+      }
+      case 'clear': {
+        setMessages([]);
+        const clearMessage: Message = {
+          type: 'system',
+          content: 'Chat history cleared.'
         };
         setMessages(prev => [...prev, clearMessage]);
         break;
@@ -616,10 +701,56 @@ export const App = () => {
         setMessages(prev => [...prev, successMessage]);
         break;
       }
+      case 'user': {
+        const userValue = args.join(' ').trim();
+        if (userValue === '') {
+          // Clear user ID
+          setUserId('');
+          await saveUserId('');
+          const clearMessage: Message = {
+            type: 'system',
+            content: 'User ID cleared.'
+          };
+          setMessages(prev => [...prev, clearMessage]);
+        } else {
+          // Set user ID
+          setUserId(userValue);
+          await saveUserId(userValue);
+          const setMessage: Message = {
+            type: 'system',
+            content: `User ID set to: ${userValue}`
+          };
+          setMessages(prev => [...prev, setMessage]);
+        }
+        break;
+      }
+      case 'channel': {
+        const channelValue = args.join(' ').trim();
+        if (channelValue === '') {
+          // Clear channel ID
+          setChannelId('');
+          await saveChannelId('');
+          const clearMessage: Message = {
+            type: 'system',
+            content: 'Channel ID cleared.'
+          };
+          setMessages(prev => [...prev, clearMessage]);
+        } else {
+          // Set channel ID
+          setChannelId(channelValue);
+          await saveChannelId(channelValue);
+          const setMessage: Message = {
+            type: 'system',
+            content: `Channel ID set to: ${channelValue}`
+          };
+          setMessages(prev => [...prev, setMessage]);
+        }
+        break;
+      }
       case 'help': {
         const helpMessage: Message = {
           type: 'system',
-          content: 'Available commands:\n/login - Authenticate with Shapes API\n/logout - Clear authentication token\n/images - List available image files\n/image [filename] - Upload an image (specify filename or auto-select first)\n/clear - Clear uploaded images\n/tools - List available tools\n/tools:enable <name> - Enable a tool\n/tools:disable <name> - Disable a tool\n/exit - Exit the application\n/help - Show this help message'
+          content: 'Available commands:\n/login - Authenticate with Shapes API\n/logout - Clear authentication token\n/user [id] - Set user ID (empty to clear)\n/channel [id] - Set channel ID (empty to clear)\n/images - List available image files\n/image [filename] - Upload an image (specify filename or auto-select first)\n/images:clear - Clear uploaded images\n/clear - Clear chat history\n/tools - List available tools\n/tools:enable <name> - Enable a tool\n/tools:disable <name> - Disable a tool\n/exit - Exit the application\n/help - Show this help message'
         };
         setMessages(prev => [...prev, helpMessage]);
         break;
@@ -677,6 +808,16 @@ export const App = () => {
           'X-User-Auth': token,
         },
       };
+
+      // Add user ID header if set
+      if (userId) {
+        clientConfig.defaultHeaders['X-User-ID'] = userId;
+      }
+
+      // Add channel ID header if set
+      if (channelId) {
+        clientConfig.defaultHeaders['X-Channel-ID'] = channelId;
+      }
       
       const shapesClient = new OpenAI(clientConfig);
       setClient(shapesClient);
@@ -732,6 +873,10 @@ export const App = () => {
     }
   };
 
+  const handleRemoveImage = (index: number) => {
+    setImages(prev => prev.filter((_, i) => i !== index));
+  };
+
   if (error) {
     return (
       <Box height={terminalHeight} flexDirection="column" justifyContent="center" alignItems="center">
@@ -740,8 +885,10 @@ export const App = () => {
     );
   }
 
-  // Reserve 3 lines for input (1 for input box + 1 for status + 1 for spacing)
-  const messageAreaHeight = Math.max(1, terminalHeight - 3);
+  // Calculate dynamic height for input area (images + input + status + spacing)
+  const imagesHeight = images.length > 0 ? 2 : 0; // 1 line for images + 1 margin
+  const inputAreaHeight = 3 + imagesHeight; // input + status + spacing + images
+  const messageAreaHeight = Math.max(1, terminalHeight - inputAreaHeight);
 
   return (
     <Box height={terminalHeight} width={terminalWidth} flexDirection="column">
@@ -761,6 +908,9 @@ export const App = () => {
           endpoint={endpoint}
           terminalWidth={terminalWidth}
           inputMode={inputMode}
+          userId={userId}
+          channelId={channelId}
+          onRemoveImage={handleRemoveImage}
           onEscape={() => {
             if (inputMode === 'awaiting_auth') {
               setInputMode('normal');

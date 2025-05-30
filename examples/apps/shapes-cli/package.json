@@ -6,13 +6,14 @@
     "type": "module",
     "scripts": {
         "start": "node dist/index.js",
-        "start:dev": "ts-node src/index.tsx",
+        "start:dev": "tsx src/index.tsx",
         "login": "node dist/index.js login",
-        "login:dev": "ts-node src/index.tsx login",
+        "login:dev": "tsx src/index.tsx login",
         "logout": "node dist/index.js logout",
-        "logout:dev": "ts-node src/index.tsx logout",
+        "logout:dev": "tsx src/index.tsx logout",
         "build": "tsc",
-        "dev": "ts-node src/index.tsx",
+        "dev": "tsx src/index.tsx",
+        "watch": "tsx watch src/index.tsx",
         "typecheck": "tsc --noEmit",
         "lint": "eslint src --ext .ts,.tsx",
         "lint:fix": "eslint src --ext .ts,.tsx --fix"
@@ -44,6 +45,7 @@
         "eslint-plugin-react-hooks": "^5.2.0",
         "npm-check-updates": "^18.0.1",
         "ts-node": "^10.9.2",
+        "tsx": "^4.19.4",
         "typescript": "^5.8.3"
     }
 }
