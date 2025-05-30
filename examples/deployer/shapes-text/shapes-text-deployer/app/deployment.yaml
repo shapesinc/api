@@ -1,0 +1,160 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shapestext-app
+  labels:
+    app: shapestext
+spec:
+  replicas: 1 # You can increase this for more instances
+  selector:
+    matchLabels:
+      app: shapestext
+  template:
+    metadata:
+      labels:
+        app: shapestext
+    spec:
+      containers:
+      - name: shapestext-app
+        image: shapestext:latest # This must match the image name you build
+        imagePullPolicy: IfNotPresent # Use IfNotPresent for images built locally in minikube's docker env
+        ports:
+        - containerPort: 8080 # The port your Node.js app listens on
+
+        # --- Environment Variables ---
+        # All environment variables are now read from the single 'shapestext-secrets' Secret
+        env:
+        - name: PORT
+          value: "8080" # Match the exposed port
+
+        # Read all other necessary environment variables from the 'shapestext-secrets' Secret
+        # These keys must match the data keys generated in /api/deploy/route.ts
+        - name: SHAPES_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: shapestext-secrets # Name of the Kubernetes Secret
+              key: SHAPES_API_KEY # Key within the Secret
+        - name: SHAPES_API_URL
+          valueFrom:
+            secretKeyRef:
+              name: shapestext-secrets
+              key: SHAPES_API_URL
+        - name: OPERATOR_SHAPE_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: shapestext-secrets
+              key: OPERATOR_SHAPE_USERNAME
+        - name: DEFAULT_SHAPE_USER
+          valueFrom:
+            secretKeyRef:
+              name: shapestext-secrets
+              key: DEFAULT_SHAPE_USER
+        - name: LOG_LEVEL
+          valueFrom:
+            secretKeyRef:
+              name: shapestext-secrets
+              key: LOG_LEVEL
+        - name: TEST_USER_ID
+          valueFrom:
+            secretKeyRef:
+              name: shapestext-secrets
+              key: TEST_USER_ID
+        - name: USER_PHONE_NUMBER
+          valueFrom:
+            secretKeyRef:
+              name: shapestext-secrets
+              key: USER_PHONE_NUMBER
+
+        # Twilio Credentials
+        - name: TWILIO_ACCOUNT_SID
+          valueFrom:
+            secretKeyRef:
+              name: shapestext-secrets
+              key: TWILIO_ACCOUNT_SID
+        - name: TWILIO_AUTH_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: shapestext-secrets
+              key: TWILIO_AUTH_TOKEN
+        - name: TWILIO_PHONE_NUMBER
+          valueFrom:
+            secretKeyRef:
+              name: shapestext-secrets
+              key: TWILIO_PHONE_NUMBER
+
+        # Sendblue Credentials (Assuming these are NOT sent from frontend, hardcoded or removed)
+        # Based on your request, Sendblue keys are not in the frontend form.
+        # If they are still required by the Node.js app, you need to decide
+        # if they are hardcoded in the API route's staticSecrets, or
+        # added back to the frontend form, or managed differently.
+        # For now, commenting them out based on your list of required frontend keys.
+        # If your Node.js app *needs* these, you must uncomment and ensure they are
+        # added to the 'shapestext-secrets' Secret data in the deploy route.
+        # - name: SENDBLUE_API_KEY_ID
+        #   valueFrom:
+        #     secretKeyRef:
+        #       name: shapestext-secrets
+        #       key: SENDBLUE_API_KEY_ID
+        # - name: SENDBLUE_API_SECRET_KEY
+        #   valueFrom:
+        #     secretKeyRef:
+        #       name: shapestext-secrets
+        #       key: SENDBLUE_API_SECRET_KEY
+        # - name: SENDBLUE_PHONE_NUMBER
+        #   valueFrom:
+        #     secretKeyRef:
+        #       name: shapestext-secrets
+        #       key: SENDBLUE_PHONE_NUMBER
+
+        # Redis Configuration (Conditional based on REDIS_AVAILABLE)
+        # If REDIS_AVAILABLE is hardcoded to 'false' in the API route,
+        # these Redis keys are not strictly needed in the Secret unless
+        # your Node.js app handles the 'false' case gracefully.
+        # If you might enable Redis later, keep these definitions.
+        - name: REDIS_AVAILABLE
+          valueFrom:
+            secretKeyRef:
+              name: shapestext-secrets
+              key: REDIS_AVAILABLE
+        # - name: REDIS_URL # Use this OR the individual fields below
+        #   valueFrom:
+        #     secretKeyRef:
+        #       name: shapestext-secrets
+        #       key: REDIS_URL
+        #       # optional: true # Use this if the key might be missing
+        # - name: REDIS_HOST
+        #   valueFrom:
+        #     secretKeyRef:
+        #       name: shapestext-secrets
+        #       key: REDIS_HOST
+        # - name: REDIS_PORT
+        #   valueFrom:
+        #     secretKeyRef:
+        #       name: shapestext-secrets
+        #       key: REDIS_PORT
+        # - name: REDIS_USERNAME
+        #   valueFrom:
+        #     secretKeyRef:
+        #       name: shapestext-secrets
+        #       key: REDIS_USERNAME
+        # - name: REDIS_PASSWORD
+        #   valueFrom:
+        #     secretKeyRef:
+        #       name: shapestext-secrets
+        #       key: REDIS_PASSWORD
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: shapestext-service
+spec:
+  selector:
+    app: shapestext # Selects the pods created by the Deployment
+  ports:
+    - protocol: TCP
+      port: 80 # The port the Service will listen on (can be 80 or 443 for standard web traffic)
+      targetPort: 8080 # The port the container is listening on (EXPOSE 8080)
+  type: LoadBalancer # Use LoadBalancer to expose the service externally in cloud environments
+                    # Minikube will typically provision a NodePort or use its own tunnel for LoadBalancer
+                    # If LoadBalancer doesn't work, try NodePort: type: NodePort

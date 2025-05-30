@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: whatsapp-shape-bot # Name of your deployment
+spec:
+  replicas: 1 # Run one instance of the bot
+  selector:
+    matchLabels:
+      app: whatsapp-shape-bot
+  template:
+    metadata:
+      labels:
+        app: whatsapp-shape-bot
+    spec:
+      containers:
+      - name: whatsapp-bot # Name of the container
+        image: whatsapp-shape-bot:latest # Use the image name and tag you build
+        imagePullPolicy: IfNotPresent # Only pull if the image is not present locally
+        env:
+        - name: SHAPESINC_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: whatsapp-secrets # Reference the Secret name
+              key: SHAPESINC_API_KEY # Reference the key within the Secret
+        - name: SHAPESINC_SHAPE_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: whatsapp-secrets
+              key: SHAPESINC_SHAPE_USERNAME
+        # Add environment variables required by puppeteer if necessary
+        # - name: PUPPETEER_EXECUTABLE_PATH
+        #   value: /usr/bin/google-chrome-stable # Example, adjust based on Dockerfile
+        volumeMounts:
+        - name: session-storage # Mount the volume
+          mountPath: /app/.wwebjs_auth # Path where whatsapp-web.js stores session data (assuming /app is WORKDIR)
+          # Adjust mountPath if your WORKDIR or wwebjs_auth location is different
+      volumes:
+      - name: session-storage
+        persistentVolumeClaim:
+          claimName: whatsapp-session-pvc # Reference the PVC created above
+      # Add production readiness probes and resource limits/requests here if needed
+      # resources:
+      #   limits:
+      #     memory: "512Mi"
+      #     cpu: "1000m"
+      # livenessProbe: ...
+      # readinessProbe: ...

@@ -1,0 +1,71 @@
+# app/whatsapp-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: whatsapp-shape-bot
+  labels:
+    app: whatsapp-shape-bot
+spec:
+  replicas: 1 # Run a single instance of the bot
+  selector:
+    matchLabels:
+      app: whatsapp-shape-bot # Selects pods with this label
+  strategy:
+    type: Recreate # Use Recreate strategy to avoid issues with single RWO volume mount on update
+                   # RollingUpdate is standard but needs careful handling of RWO volumes or RWM volumes
+  template:
+    metadata:
+      labels:
+        app: whatsapp-shape-bot # Crucial label applied to pods for selection
+    spec:
+      volumes:
+        # Define the volume that uses the PVC for session data
+        - name: whatsapp-session-storage
+          persistentVolumeClaim:
+            claimName: whatsapp-bot-pvc # Must match the PVC metadata.name
+      containers:
+        - name: whatsapp-bot # Name of the container within the pod
+          image: whatsapp-shape-bot:latest # This *must* match the image name and tag you build
+          imagePullPolicy: IfNotPresent # Use IfNotPresent if you are building locally into Minikube Docker env
+                                        # Use Always if pulling from a remote registry (e.g., Docker Hub)
+          ports:
+            # Expose the port where the bot's server runs (now hosting Socket.IO)
+            - containerPort: 3000
+              name: bot-server # <-- Updated port name for clarity (optional but recommended)
+                               # Was previously 'http-qr'
+          env:
+            # Mount these environment variables from the Kubernetes Secret
+            - name: SHAPESINC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: whatsapp-secrets # Name of the Secret created by the /api/deploy route
+                  key: SHAPESINC_API_KEY
+            - name: SHAPESINC_SHAPE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: whatsapp-secrets # Name of the Secret created by the /api/deploy route
+                  key: SHAPESINC_SHAPE_USERNAME
+            # NGROK_AUTHTOKEN is no longer needed in the Node.js code's environment variables
+            # You can remove this from the Secret generation if it's no longer used anywhere.
+            # The Dockerfile's ENV NGROK_AUTHTOKEN instruction is also now irrelevant
+            # as the ngrok binary is removed.
+
+          volumeMounts:
+            # Mount the volume to the path where whatsapp-web.js stores session data
+            - name: whatsapp-session-storage
+              mountPath: /app/.wwebjs_auth # Default path for LocalAuth, must match the path used by the bot code
+          # Optional: Add liveness and readiness probes
+          # If you kept the '/' route in index.js, httpGet probes can still work.
+          # readinessProbe:
+          #   httpGet:
+          #     path: / # Check the root endpoint
+          #     port: 3000
+          #   initialDelaySeconds: 15
+          #   periodSeconds: 10
+          # livenessProbe:
+          #   httpGet:
+          #     path: / # Check the root endpoint (or a dedicated health check)
+          #     port: 3000
+          #   initialDelaySeconds: 120 # Give plenty of time for auth
+          #   periodSeconds: 60
+          #   failureThreshold: 3

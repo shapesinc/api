@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: whatsapp-session-pvc 
+spec:
+  accessModes:
+    - ReadWriteOnce # Can be mounted read/write by a single node at a time
+  resources:
+    requests:
+      storage: 1Gi # Request 1GB of storage (Minikube's default StorageClass can usually fulfill this)

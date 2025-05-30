@@ -1,0 +1,80 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: reddit-shape-bot
+  labels:
+    app: reddit-shape-bot
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: reddit-shape-bot
+  template:
+    metadata:
+      labels:
+        app: reddit-shape-bot
+    spec:
+      containers:
+      - name: reddit-shape-bot
+        image: reddit-shape-bot:latest
+        imagePullPolicy: Never
+        env:
+        - name: SHAPESINC_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: bot-secrets
+              key: shapesinc_api_key
+        - name: SHAPESINC_SHAPE_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: bot-secrets
+              key: shapesinc_shape_username
+        - name: REDDIT_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: bot-secrets
+              key: reddit_client_id
+        - name: REDDIT_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: bot-secrets
+              key: reddit_client_secret
+        - name: REDDIT_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: bot-secrets
+              key: reddit_username
+        - name: REDDIT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: bot-secrets
+              key: reddit_password
+        - name: REDDIT_SUBREDDIT
+          valueFrom:
+            secretKeyRef:
+              name: bot-secrets
+              key: reddit_subreddit
+        - name: POLLING_INTERVAL_MS
+          valueFrom:
+            secretKeyRef:
+              name: bot-secrets
+              key: polling_interval_ms
+              optional: true
+        volumeMounts:
+        - name: bot-data
+          mountPath: /app/data
+      volumes:
+      - name: bot-data
+        persistentVolumeClaim:
+          claimName: reddit-bot-pvc
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: reddit-bot-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Mi

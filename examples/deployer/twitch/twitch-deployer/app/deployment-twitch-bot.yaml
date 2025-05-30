@@ -1,0 +1,47 @@
+# deployment-twitch-bot.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: twitch-shape-bot # Name of your deployment (changed from reddit)
+spec:
+  replicas: 1 # Run one instance of the bot
+  selector:
+    matchLabels:
+      app: twitch-shape-bot
+  template:
+    metadata:
+      labels:
+        app: twitch-shape-bot
+    spec:
+      containers:
+      - name: bot # Name of the container
+        image: twitch-shape-bot:latest # Use the image name and tag you build in minikube
+        imagePullPolicy: IfNotPresent # Only pull if the image is not present locally
+        env:
+        # Environment variables used by the provided Twitch bot JavaScript code
+        - name: SHAPESINC_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: twitch-bot-secrets # Reference a new Secret name
+              key: SHAPESINC_API_KEY
+        - name: SHAPESINC_SHAPE_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: twitch-bot-secrets
+              key: SHAPESINC_SHAPE_USERNAME
+        - name: TWITCH_OAUTH
+          valueFrom:
+            secretKeyRef:
+              name: twitch-bot-secrets
+              key: TWITCH_OAUTH
+        - name: TWITCH_CHANNEL
+          valueFrom:
+            secretKeyRef:
+              name: twitch-bot-secrets
+              key: TWITCH_CHANNEL
+        # Add resource limits/requests if needed (recommended for production)
+        # resources:
+        #   limits:
+        #     memory: "128Mi" # Example values, adjust based on your bot's needs
+        #     cpu: "500m"   # Example values
+

@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bluesky-shape-bot # Name of your deployment
+spec:
+  replicas: 1 # Run one instance of the bot
+  selector:
+    matchLabels:
+      app: bluesky-shape-bot
+  template:
+    metadata:
+      labels:
+        app: bluesky-shape-bot
+    spec:
+      containers:
+      - name: bot # Name of the container
+        image: bluesky-shape-bot:latest # Use the image name and tag you build
+        imagePullPolicy: IfNotPresent # Only pull if the image is not present locally
+        env:
+        - name: BLUESKY_IDENTIFIER
+          valueFrom:
+            secretKeyRef:
+              name: bot-secrets # Reference the Secret name
+              key: BLUESKY_IDENTIFIER # Reference the key within the Secret
+        - name: BLUESKY_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: bot-secrets
+              key: BLUESKY_PASSWORD
+        - name: SHAPESINC_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: bot-secrets
+              key: SHAPESINC_API_KEY
+        - name: SHAPESINC_SHAPE_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: bot-secrets
+              key: SHAPESINC_SHAPE_USERNAME
+        - name: POLLING_INTERVAL
+          value: "60000" # You can hardcode this or make it configurable
+        # Add resource limits/requests if needed
+        # resources:
+        #   limits:
+        #     memory: "128Mi"
+        #     cpu: "500m"
