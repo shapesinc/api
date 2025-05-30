@@ -4,7 +4,7 @@ import { renderCodeBlock } from '../utils/rendering.js';
 import open from 'open';
 
 interface Message {
-  type: 'user' | 'assistant' | 'system' | 'tool';
+  type: 'user' | 'assistant' | 'system' | 'tool' | 'error';
   content: string;
   images?: string[];
   tool_calls?: any[];
@@ -57,11 +57,18 @@ export const MessageList = ({ messages, shapeName }: MessageListProps) => {
 
     return (
       <Box key={`message-${index}`} flexDirection="column" marginBottom={1}>
-        <Text color={message.type === 'user' ? 'green' : message.type === 'system' ? 'magenta' : message.type === 'tool' ? 'yellow' : 'cyan'}>
-          {message.type === 'user' ? 'You:' : message.type === 'system' ? 'System:' : message.type === 'tool' ? 'Tool:' : getAssistantLabel()}
+        <Text color={message.type === 'user' ? 'green' : message.type === 'system' ? 'magenta' : message.type === 'tool' ? 'yellow' : message.type === 'error' ? 'red' : 'cyan'}>
+          {message.type === 'user' ? 'You:' : message.type === 'system' ? 'System:' : message.type === 'tool' ? 'Tool:' : message.type === 'error' ? 'Error:' : getAssistantLabel()}
         </Text>
         <Box marginLeft={2}>
-          <Text>{formattedContent}</Text>
+          {message.type === 'error' ? (
+            <Text>
+              <Text color="gray">API Error: </Text>
+              <Text color="red">{message.content.replace('API Error: ', '')}</Text>
+            </Text>
+          ) : (
+            <Text>{formattedContent}</Text>
+          )}
         </Box>
         {message.tool_calls && message.tool_calls.length > 0 && (
           <Box marginLeft={2} marginTop={1}>

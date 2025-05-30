@@ -15,7 +15,7 @@ import path from 'path';
 import os from 'os';
 
 interface Message {
-  type: 'user' | 'assistant' | 'system' | 'tool';
+  type: 'user' | 'assistant' | 'system' | 'tool' | 'error';
   content: string;
   images?: string[];
   tool_calls?: any[];
@@ -291,7 +291,7 @@ export const App = () => {
       const request = {
         model: config.model,
         messages: [
-          ...messages.filter(msg => msg.type !== 'system' && msg.type !== 'tool').map(msg => {
+          ...messages.filter(msg => msg.type !== 'system' && msg.type !== 'tool' && msg.type !== 'error').map(msg => {
             if (msg.type === 'user' && msg.images && msg.images.length > 0) {
               return {
                 role: 'user' as const,
@@ -352,7 +352,7 @@ export const App = () => {
         
         // Make second API call with tool results
         const updatedMessages = [
-          ...messages.filter(msg => msg.type !== 'system' && msg.type !== 'tool').map(msg => {
+          ...messages.filter(msg => msg.type !== 'system' && msg.type !== 'tool' && msg.type !== 'error').map(msg => {
             if (msg.type === 'user' && msg.images && msg.images.length > 0) {
               return {
                 role: 'user' as const,
@@ -489,7 +489,15 @@ export const App = () => {
         setMessages(prev => [...prev, assistantMessage]);
       }
     } catch (err) {
-      setError((err as Error).message);
+      const error = err as any;
+      const status = error.status || error.code || 'Unknown';
+      const message = error.message || 'An unexpected error occurred';
+      
+      const errorMessage: Message = {
+        type: 'error',
+        content: `API Error: ${status} ${message}`
+      };
+      setMessages(prev => [...prev, errorMessage]);
     }
   };
 
