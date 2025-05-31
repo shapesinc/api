@@ -60,7 +60,8 @@ shape-vscode/
 
 2. **Add your Shapes API key in the .env file**
    
-    SHAPESINC_API_KEY= /<   your-api-key/>      
+
+    SHAPESINC_API_KEY= <your-api-key>      
     Get yours from https://shapes.inc/developer
 
 3. **Launch Extension Development Host**
