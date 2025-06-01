@@ -29,7 +29,7 @@
     },
     "dependencies": {
         "dotenv": "^16.5.0",
-        "node-fetch": "^2.6.1",
+        "node-fetch": "^2.7.0",
         "openai": "^4.98.0"
     }
 }
