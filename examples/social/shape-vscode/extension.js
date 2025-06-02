@@ -40,13 +40,42 @@ function activate(context) {
           const { command } = msg;
 
           try {
+            if (command === 'pickFile') {
+              // Open file picker dialog
+              const uris = await vscode.window.showOpenDialog({
+                canSelectMany: msg.allowMultiple === true,
+                openLabel: 'Attach',
+                filters: { 'All files': ['*'] }
+              });
+              if (uris && uris.length > 0) {
+                const files = [];
+                for (const fileUri of uris) {
+                  const fileName = fileUri.path.split('/').pop();
+                  const fileContent = await vscode.workspace.fs.readFile(fileUri);
+                  const contentStr = Buffer.from(fileContent).toString('utf8');
+                  files.push({ name: fileName, content: contentStr });
+                }
+                if (files.length > 1) {
+                  panel.webview.postMessage({ command: 'filePicked', files });
+                } else {
+                  panel.webview.postMessage({ command: 'filePicked', file: files[0] });
+                }
+              }
+              return;
+            }
+
             if (command === 'send') {
-              const { chatId, userMessage } = msg;
+              const { chatId, userMessage, attachedFile, attachedFiles } = msg;
               if (!chatId || !userMessage) return;
 
               currentChatId = chatId;
               if (!chats[chatId]) chats[chatId] = { type: 'shape', history: [] };
-              chats[chatId].history.push({ role: 'user', content: userMessage });
+              let userMsgContent = userMessage;
+              let filesToAttach = attachedFiles || (attachedFile ? [attachedFile] : []);
+              if (filesToAttach && filesToAttach.length > 0) {
+                userMsgContent += filesToAttach.map(f => `\n\n[Attached file: ${f.name}]\n\n———\n${f.content}\n———`).join('');
+              }
+              chats[chatId].history.push({ role: 'user', content: userMsgContent });
 
               if (chats[chatId].type === 'group') {
                 const replies = [];
@@ -64,6 +93,7 @@ function activate(context) {
                       })
                     });
                     const json = await res.json();
+                    console.log('Shapes API response:', JSON.stringify(json, null, 2));
                     const reply = json?.choices?.[0]?.message?.content || '⚠️ No reply.';
                     replies.push(`**${member}**: ${reply}`);
                   } catch (err) {
@@ -87,6 +117,7 @@ function activate(context) {
                   });
 
                   const json = await res.json();
+                  console.log('Shapes API response:', JSON.stringify(json, null, 2));
                   const botReply = json?.choices?.[0]?.message?.content || '⚠️ Unexpected API response.';
                   chats[chatId].history.push({ role: 'assistant', content: botReply });
 
@@ -143,6 +174,22 @@ function activate(context) {
                 chatId,
                 history: chats[chatId]?.history || []
               });
+            }
+
+            // Handle group member add/remove
+            if (msg.command === 'addMembersToGroup') {
+              const { chatId, newMembers } = msg;
+              if (chats[chatId] && chats[chatId].type === 'group') {
+                chats[chatId].members = Array.from(new Set([...(chats[chatId].members || []), ...newMembers]));
+                panel.webview.postMessage({ command: 'added', chatId, chat: chats[chatId] });
+              }
+            }
+            if (msg.command === 'removeMemberFromGroup') {
+              const { chatId, memberIndex } = msg;
+              if (chats[chatId] && chats[chatId].type === 'group') {
+                chats[chatId].members.splice(memberIndex, 1);
+                panel.webview.postMessage({ command: 'added', chatId, chat: chats[chatId] });
+              }
             }
 
             await context.workspaceState.update('shapesChats', chats);
