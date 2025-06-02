@@ -220,11 +220,9 @@ function addEventListeners() {
     const msg = document.getElementById('messageInput').value.trim();
     if (msg && activeChatId) {
       if (!state.chats[activeChatId].history) state.chats[activeChatId].history = [];
-      // Only store file names in chat history for UI, not file content
-      const filesForUI = attachedFiles.map(f => ({ name: f.name }));
-      state.chats[activeChatId].history.push({ role: 'user', content: msg, attachedFiles: filesForUI });
+      // Store attached file names for UI
+      state.chats[activeChatId].history.push({ role: 'user', content: msg, attachedFiles: attachedFiles.map(f => ({ name: f.name })) });
       updateChat();
-      // Send file content to backend, but not store in UI history
       vscode.postMessage({
         command: 'send',
         chatId: activeChatId,
@@ -454,7 +452,12 @@ function updateChat() {
         }
         return blocks.join('');
       } else if (m.role === 'user') {
-        return `<div style='display:flex;flex-direction:column;align-items:flex-end;'><div style='width:70%;'>${fileLine}<div class="user">${m.content}</div></div></div>`;
+        // Show attached files above the user bubble, right-aligned
+        let fileLine = '';
+        if (m.attachedFiles && m.attachedFiles.length > 0) {
+          fileLine = `<div class='attached-file-chat' style='text-align:right;margin-bottom:2px;'>${m.attachedFiles.map(f => `<span class='attached-file-green'>${f.name}</span>`).join(' ')}</div>`;
+        }
+        return `<div style='display:flex;flex-direction:column;align-items:flex-end;'><div style='display:inline-block;max-width:70%;min-width:40px;'>${fileLine}<div class="user" style="text-align:right;display:inline-block;max-width:100%;min-width:40px;">${m.content}</div></div></div>`;
       }
       return '';
     }).join('');
@@ -469,7 +472,8 @@ function updateChat() {
         fileLine = `<div class='attached-file-chat'>${m.attachedFiles.map(f => `<span class='attached-file-green'><span class='codicon codicon-file-media'></span> ${f.name}</span>`).join('')}</div>`;
       }
       if (m.role === 'user') {
-        return `<div style='display:flex;flex-direction:column;align-items:flex-end;'><div style='width:70%;'>${fileLine}<div class="user">${m.content}</div></div></div>`;
+        // Right align user message, bubble adjusts to message length
+        return `<div style='display:flex;flex-direction:column;align-items:flex-end;'><div style='display:inline-block;max-width:70%;min-width:40px;'>${fileLine}<div class="user" style="text-align:right;display:inline-block;max-width:100%;min-width:40px;">${m.content}</div></div></div>`;
       } else {
         return `<div style='display:flex;flex-direction:column;align-items:flex-start;'><div style='width:70%;'>${fileLine}<div class="assistant">${renderMarkdown(m.content)}</div></div></div>`;
       }

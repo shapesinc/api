@@ -76,16 +76,18 @@ function activate(context) {
               if (filesToAttach && filesToAttach.length > 0) {
                 userMsgContent += filesToAttach.map(f => `\n\n[Attached file: ${f.name}]`).join('');
               }
-              // Store only the user message (with file names) in history
-              chats[chatId].history.push({ role: 'user', content: userMsgContent });
+              // Store only the user message (with file names) in history, and keep attachedFiles for API
+              chats[chatId].history.push({ role: 'user', content: userMsgContent, attachedFiles: filesToAttach.map(f => ({ name: f.name })) });
+              // Save the file content for the last message for API use
+              chats[chatId].lastSentFiles = filesToAttach.map(f => `\n\n[Attached file: ${f.name}]\n\n———\n${f.content}\n———`).join('');
 
               // Prepare messages for API: always include all history, including system messages
               const apiMessages = chats[chatId].history.map(m => {
-                if (m.role === 'user' && filesToAttach && filesToAttach.length > 0) {
+                if (m.role === 'user' && m.attachedFiles && m.attachedFiles.length > 0) {
                   // For API, append file content to the user message
                   return {
                     role: m.role,
-                    content: userMessage + filesToAttach.map(f => `\n\n[Attached file: ${f.name}]\n\n———\n${f.content}\n———`).join('')
+                    content: m.content + chats[chatId].lastSentFiles
                   };
                 }
                 return m;
