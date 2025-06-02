@@ -13,8 +13,8 @@ Chat with [Shapes AI](https://shapes.inc) agents directly from Visual Studio Cod
 ## ✨ Features
 
 - ✅ Chat with any Shapes model using its shape username
-- ✅ Create multiple tabs — one per shape agent
-- ✅ Isolated chat history per shape tab
+- ✅ Chat with individual shapes or make groupchats!
+- ✅ Attach files to your messages
 - ✅ Clean, dark-themed UI with assistant/user message styling
 - ✅ Clear individual chat histories
 - ✅ Built with native VS Code Webview API
@@ -33,15 +33,20 @@ Before you begin, make sure you have:
 
 ---
 
-## 🗂 Directory Structure       
+## 🗂 Directory Structure    
+```   
 shape-vscode/          
-├── extension.js     
+├── extension.js   
+├── files/   
+    ├── main.js    
+    └──style.css   
 ├── package.json      
 ├── .env      
 ├── .gitignore  
 ├── .vscodeignore  
-└── README.md  
-├── media
+├── README.md    
+└── media   
+```
 
 
 ## 🛠 Installation
@@ -75,24 +80,77 @@ shape-vscode/
 
 5. **Using Shapes Chat**
 
-    - Click on + to create a new chat and enter the shape username (Note that currently you can talk to a shape in one chat only)
+    For individual shapes -     
 
-    <img src="./media/select-shape.png" alt="App Preview" width="350" />
+    - Click on "+ Add Shape" to create a new chat and enter the shape username 
+
+    <img src="./media/add-shape.png" alt="App Preview" width="350" />
 
     - After entering your preferred shape, you can start chatting!
 
+
+    <img src="./media/select-floyd-ai.png" alt="App Preview" width="350" />
+
     <img src="./media/chat.png" alt="App Preview" width="350" />
 
-    - Click on 'Clear Chat' to clear the chat and on '+' to chat with more shapes
+
+
+    - Click on 'Clear Chat'(trashcan icon) to clear the chat and on 'Remove Chat'(cross icon) to remove the shape
+
+
+
+
+
+
+    For groupchats -     
+
+    - Click on "+ Make new groupchat" to create a new groupchat and enter the shape usernames(separated by commas) which you want to add to the gc
+
+    <img src="./media/create-gc.png" alt="App Preview" width="350" />
+
+    - After making the gc, you can start chatting!
+
+    - You can also add file by clicking on the button left of 'Send'
+
+
+    <img src="./media/select-file.png" alt="App Preview" width="350" />
+
+    <img src="./media/sent-file.png" alt="App Preview" width="350" />
+
+
+    - To remove or add members, click on the gc name on top. 
+
+    <img src="./media/modal.png" alt="App Preview" width="350" />
+
+    - Press "-" to remove a member
+
+    <img src="./media/member-removed.png" alt="App Preview" width="350" />
+
+    - Click on "Add Members" and type in comma separated usernames to add members.
+
+    <img src="./media/add-member.png" alt="App Preview" width="350" />
+
+
+    - Click on 'Clear Chat'(trashcan icon) to clear the groupchat and on 'Remove Chat'(cross icon) to remove the groupchat
+
+
+
 
 
 ## Deployment
 
 I haven't published it yet as a VS code extension, I am working on it.
 
+
+## Future work
+
+Better UI, Voice support, Free will  
+
+
 ## Licenses
 
 Sorry I have no idea about this part.
+
 
 ## Acknowledgements
 
