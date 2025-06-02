@@ -220,8 +220,11 @@ function addEventListeners() {
     const msg = document.getElementById('messageInput').value.trim();
     if (msg && activeChatId) {
       if (!state.chats[activeChatId].history) state.chats[activeChatId].history = [];
-      state.chats[activeChatId].history.push({ role: 'user', content: msg, attachedFiles: attachedFiles.map(f => ({ name: f.name })) });
+      // Only store file names in chat history for UI, not file content
+      const filesForUI = attachedFiles.map(f => ({ name: f.name }));
+      state.chats[activeChatId].history.push({ role: 'user', content: msg, attachedFiles: filesForUI });
       updateChat();
+      // Send file content to backend, but not store in UI history
       vscode.postMessage({
         command: 'send',
         chatId: activeChatId,
@@ -418,6 +421,10 @@ function updateChat() {
   const chat = state.chats[activeChatId];
   if (chat && chat.type === 'group') {
     historyDiv.innerHTML = messages.map(m => {
+      if (m.role === 'system') {
+        // System message: center, purple, plain text
+        return `<div style='text-align:center;color:#a259f7;font-size:14px;margin:8px 0 4px 0;'>${escapeHtml(m.content)}</div>`;
+      }
       if (m.role === 'info') {
         return `<div style='text-align:center;color:#aaa;font-size:13px;margin:8px 0 4px 0;'>${m.content}</div>`;
       }

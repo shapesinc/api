@@ -72,10 +72,24 @@ function activate(context) {
               if (!chats[chatId]) chats[chatId] = { type: 'shape', history: [] };
               let userMsgContent = userMessage;
               let filesToAttach = attachedFiles || (attachedFile ? [attachedFile] : []);
+              // Do NOT append file content to userMsgContent for UI, only for API
               if (filesToAttach && filesToAttach.length > 0) {
-                userMsgContent += filesToAttach.map(f => `\n\n[Attached file: ${f.name}]\n\n———\n${f.content}\n———`).join('');
+                userMsgContent += filesToAttach.map(f => `\n\n[Attached file: ${f.name}]`).join('');
               }
+              // Store only the user message (with file names) in history
               chats[chatId].history.push({ role: 'user', content: userMsgContent });
+
+              // Prepare messages for API: always include all history, including system messages
+              const apiMessages = chats[chatId].history.map(m => {
+                if (m.role === 'user' && filesToAttach && filesToAttach.length > 0) {
+                  // For API, append file content to the user message
+                  return {
+                    role: m.role,
+                    content: userMessage + filesToAttach.map(f => `\n\n[Attached file: ${f.name}]\n\n———\n${f.content}\n———`).join('')
+                  };
+                }
+                return m;
+              });
 
               if (chats[chatId].type === 'group') {
                 const replies = [];
@@ -89,7 +103,7 @@ function activate(context) {
                       },
                       body: JSON.stringify({
                         model: `shapesinc/${member}`,
-                        messages: [...chats[chatId].history]
+                        messages: apiMessages
                       })
                     });
                     const json = await res.json();
@@ -112,7 +126,7 @@ function activate(context) {
                     },
                     body: JSON.stringify({
                       model: `shapesinc/${chatId}`,
-                      messages: chats[chatId].history
+                      messages: apiMessages
                     })
                   });
 
@@ -180,14 +194,24 @@ function activate(context) {
             if (msg.command === 'addMembersToGroup') {
               const { chatId, newMembers } = msg;
               if (chats[chatId] && chats[chatId].type === 'group') {
+                const addedMembers = newMembers.filter(m => !(chats[chatId].members || []).includes(m));
                 chats[chatId].members = Array.from(new Set([...(chats[chatId].members || []), ...newMembers]));
+                // Add system message for each new member
+                for (const member of addedMembers) {
+                  chats[chatId].history.push({ role: 'system', content: `${member} was added to the gc` });
+                }
                 panel.webview.postMessage({ command: 'added', chatId, chat: chats[chatId] });
               }
             }
             if (msg.command === 'removeMemberFromGroup') {
               const { chatId, memberIndex } = msg;
               if (chats[chatId] && chats[chatId].type === 'group') {
+                const removedMember = chats[chatId].members[memberIndex];
                 chats[chatId].members.splice(memberIndex, 1);
+                // Add system message for removed member
+                if (removedMember) {
+                  chats[chatId].history.push({ role: 'system', content: `${removedMember} was removed from the gc` });
+                }
                 panel.webview.postMessage({ command: 'added', chatId, chat: chats[chatId] });
               }
             }
