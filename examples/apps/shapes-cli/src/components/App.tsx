@@ -755,10 +755,107 @@ export const App = () => {
         }
         break;
       }
+      case 'info': {
+        try {
+          const username = args[0] || config.username;
+          const response = await fetch(`https://api.shapes.inc/shapes/public/${username}`);
+          
+          if (!response.ok) {
+            throw new Error(`Failed to fetch shape info: ${response.status} ${response.statusText}`);
+          }
+          
+          const data = await response.json();
+          
+          const {
+            id, name, username: shapeUsername, search_description, search_tags_v2,
+            created_ts, user_count, message_count, tagline, typical_phrases,
+            screenshots, category, character_universe, character_background,
+            avatar_url, avatar, banner, shape_settings, example_prompts,
+            enabled, allow_user_engine_override, error_message, wack_message
+          } = data;
+          
+          const formatDate = (timestamp: number) => {
+            return new Date(timestamp * 1000).toLocaleDateString('en-US', {
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric'
+            });
+          };
+          
+          const formatArray = (arr: any[], label: string) => {
+            if (!arr || arr.length === 0) return '';
+            if (label === 'Screenshots') {
+              return arr.map(item => `• ${item.caption}: ${item.url}`).join('\n    ');
+            }
+            return arr.map(item => `• ${item}`).join('\n    ');
+          };
+          
+          const infoContent = [
+            `🔷 === SHAPE PROFILE: ${name || shapeUsername} ===`,
+            ``,
+            `📝 Basic Info:`,
+            `  • ID: ${id || 'N/A'}`,
+            `  • Name: ${name || 'N/A'}`,
+            `  • Username: ${shapeUsername}`,
+            `  • Status: ${enabled ? '✅ Enabled' : '❌ Disabled'}`,
+            `  • Created: ${created_ts ? formatDate(created_ts) : 'N/A'}`,
+            ``,
+            `💬 Description & Tags:`,
+            `  • Description:\n    ${search_description || 'N/A'}`,
+            `  • Tagline: ${tagline || 'N/A'}`,
+            `  • Category: ${category || 'N/A'}`,
+            `  • Universe: ${character_universe || 'N/A'}`,
+            `  • Background: ${character_background || 'N/A'}`,
+            search_tags_v2 && search_tags_v2.length > 0 ? `  • Tags:\n    ${formatArray(search_tags_v2, 'Tags')}` : '',
+            ``,
+            `📊 Statistics:`,
+            `  • Users: ${user_count?.toLocaleString() || 'N/A'}`,
+            `  • Messages: ${message_count?.toLocaleString() || 'N/A'}`,
+            ``,
+            `🎭 Personality:`,
+            typical_phrases && typical_phrases.length > 0 ? `  • Typical Phrases:\n    ${formatArray(typical_phrases, 'Phrases')}` : '  • Typical Phrases: N/A',
+            example_prompts && example_prompts.length > 0 ? `  • Example Prompts:\n    ${formatArray(example_prompts, 'Prompts')}` : '  • Example Prompts: N/A',
+            ``,
+            `🖼️ Media:`,
+            `  • Avatar: ${avatar_url || avatar || 'N/A'}`,
+            `  • Banner: ${banner || 'N/A'}`,
+            screenshots && screenshots.length > 0 ? `  • Screenshots:\n    ${formatArray(screenshots, 'Screenshots')}` : '  • Screenshots: None',
+            ``,
+            `⚙️ Settings:`,
+            shape_settings ? [
+              `  • Initial Message: ${shape_settings.shape_initial_message || 'N/A'}`,
+              `  • Status Type: ${shape_settings.status_type || 'N/A'}`,
+              `  • Status: ${shape_settings.status || 'N/A'}`,
+              `  • Appearance: ${shape_settings.appearance || 'N/A'}`
+            ].join('\n') : '  • Settings: N/A',
+            ``,
+            `🔧 Advanced:`,
+            `  • User Engine Override: ${allow_user_engine_override ? 'Allowed' : 'Not Allowed'}`,
+            error_message ? `  • Error Message: ${error_message}` : '',
+            wack_message ? `  • Wack Message: ${wack_message}` : ''
+          ].filter(line => line !== '').join('\n');
+          
+          const infoMessage: Message = {
+            type: 'system',
+            content: infoContent,
+            // Add special marker for custom info formatting
+            tool_call_id: 'shape-info'
+          };
+          setMessages(prev => [...prev, infoMessage]);
+          
+        } catch (error) {
+          const errorMessage: Message = {
+            type: 'system',
+            content: `❌ Error fetching shape info: ${(error as Error).message}`
+          };
+          setMessages(prev => [...prev, errorMessage]);
+        }
+        break;
+      }
       case 'help': {
         const helpMessage: Message = {
           type: 'system',
-          content: 'Available commands:\n/login - Authenticate with Shapes API\n/logout - Clear authentication token\n/user [id] - Set user ID (empty to clear)\n/channel [id] - Set channel ID (empty to clear)\n/images - List available image files\n/image [filename] - Upload an image (specify filename or auto-select first)\n/images:clear - Clear uploaded images\n/clear - Clear chat history\n/tools - List available tools\n/tools:enable <name> - Enable a tool\n/tools:disable <name> - Disable a tool\n/exit - Exit the application\n/help - Show this help message'
+          content: 'Available commands:\n/login - Authenticate with Shapes API\n/logout - Clear authentication token\n/user [id] - Set user ID (empty to clear)\n/channel [id] - Set channel ID (empty to clear)\n/info [username] - Show shape profile info (current shape if no username provided)\n/images - List available image files\n/image [filename] - Upload an image (specify filename or auto-select first)\n/images:clear - Clear uploaded images\n/clear - Clear chat history\n/tools - List available tools\n/tools:enable <name> - Enable a tool\n/tools:disable <name> - Disable a tool\n/exit - Exit the application\n/help - Show this help message'
         };
         setMessages(prev => [...prev, helpMessage]);
         break;
