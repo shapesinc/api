@@ -39,6 +39,7 @@ interface Tool {
 const TOOLS_STATE_FILE = path.join(os.homedir(), '.shapes-cli', 'tools-state.json');
 const USER_ID_FILE = path.join(os.homedir(), '.shapes-cli', 'user-id.txt');
 const CHANNEL_ID_FILE = path.join(os.homedir(), '.shapes-cli', 'channel-id.txt');
+const APP_ID_FILE = path.join(os.homedir(), '.shapes-cli', 'app-id.txt');
 
 const saveToolsState = async (tools: Tool[]): Promise<void> => {
   try {
@@ -125,6 +126,28 @@ const loadChannelId = async (): Promise<string> => {
   }
 };
 
+const saveAppId = async (appId: string): Promise<void> => {
+  try {
+    const dir = path.dirname(APP_ID_FILE);
+    await fs.mkdir(dir, { recursive: true });
+    // Always write to file, even if empty (to distinguish from "not set")
+    await fs.writeFile(APP_ID_FILE, appId, 'utf-8');
+  } catch (_error) {
+    // Ignore save errors to not break the app
+    console.warn('Failed to save app ID:', _error);
+  }
+};
+
+const loadAppId = async (): Promise<string | null> => {
+  try {
+    const data = await fs.readFile(APP_ID_FILE, 'utf-8');
+    return data.trim();
+  } catch (_error) {
+    // Return null if file doesn't exist (no user preference set)
+    return null;
+  }
+};
+
 export const App = () => {
   const { stdout } = useStdout();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -138,6 +161,8 @@ export const App = () => {
   const [inputMode, setInputMode] = useState<'normal' | 'awaiting_auth'>('normal');
   const [userId, setUserId] = useState<string>('');
   const [channelId, setChannelId] = useState<string>('');
+  const [appId, setAppId] = useState<string>('');
+  const [appName, setAppName] = useState<string>('');
   
   const terminalHeight = stdout?.rows || 24;
   const terminalWidth = stdout?.columns || 80;
@@ -155,14 +180,28 @@ export const App = () => {
           return;
         }
 
+        // Load saved user ID, channel ID, and app ID first
+        const savedUserId = await loadUserId();
+        const savedChannelId = await loadChannelId();
+        const savedAppId = await loadAppId();
+        setUserId(savedUserId);
+        setChannelId(savedChannelId);
+        
+        // Handle app ID: null = use config default, "" = user cleared, "uuid" = user set
+        const effectiveAppId = savedAppId !== null ? savedAppId : discoveredConfig.appId;
+        setAppId(effectiveAppId);
+
         // Create client with API key or user authentication
         const clientConfig: any = {
           apiKey: discoveredConfig.apiKey,
           baseURL: discoveredConfig.apiUrl,
-          defaultHeaders: {
-            'X-App-ID': discoveredConfig.appId,
-          },
+          defaultHeaders: {},
         };
+
+        // Add app ID header if set
+        if (effectiveAppId) {
+          clientConfig.defaultHeaders['X-App-ID'] = effectiveAppId;
+        }
 
         // Add user auth header if available
         if (token) {
@@ -170,13 +209,13 @@ export const App = () => {
         }
 
         // Add user ID header if set
-        if (userId) {
-          clientConfig.defaultHeaders['X-User-ID'] = userId;
+        if (savedUserId) {
+          clientConfig.defaultHeaders['X-User-ID'] = savedUserId;
         }
 
         // Add channel ID header if set
-        if (channelId) {
-          clientConfig.defaultHeaders['X-Channel-ID'] = channelId;
+        if (savedChannelId) {
+          clientConfig.defaultHeaders['X-Channel-ID'] = savedChannelId;
         }
 
         const shapesClient = new OpenAI(clientConfig);
@@ -199,12 +238,6 @@ export const App = () => {
           loadPlugins(),
         ]);
         // Note: setTools call removed as tools are not used in the component
-        
-        // Load saved user ID and channel ID
-        const savedUserId = await loadUserId();
-        const savedChannelId = await loadChannelId();
-        setUserId(savedUserId);
-        setChannelId(savedChannelId);
 
         // Initialize test tools with saved state
         const savedToolsState = await loadToolsState();
@@ -240,6 +273,49 @@ export const App = () => {
 
     initialize();
   }, [userId, channelId]);
+
+  // Fetch app name when appId changes
+  useEffect(() => {
+    const fetchAppName = async () => {
+      if (!appId) {
+        setAppName('');
+        return;
+      }
+
+      try {
+        const token = await getToken();
+        const headers: any = {
+          'X-App-ID': appId
+        };
+        
+        if (config.apiKey) {
+          headers['Authorization'] = `Bearer ${config.apiKey}`;
+        }
+        
+        if (token) {
+          headers['X-User-Auth'] = token;
+        }
+        
+        const response = await fetch(`${endpoint.replace('/v1', '')}/auth/app_info`, {
+          method: 'GET',
+          headers
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          setAppName(data.name);
+        } else {
+          // If we can't fetch the name, show the app ID instead
+          setAppName(appId);
+        }
+      } catch (error) {
+        // If we can't fetch the name, show the app ID instead
+        setAppName(appId);
+      }
+    };
+
+    fetchAppName();
+  }, [appId, endpoint]);
 
   const handleSendMessage = async (content: string, messageImages?: string[]) => {
     // Handle awaiting auth token
@@ -852,10 +928,111 @@ export const App = () => {
         }
         break;
       }
+      case 'application': {
+        try {
+          const appIdValue = args[0]?.trim();
+          
+          if (appIdValue) {
+            // Validate UUID format
+            const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+            if (!uuidRegex.test(appIdValue)) {
+              throw new Error('Invalid UUID format. Please provide a valid application ID.');
+            }
+            
+            await saveAppId(appIdValue);
+            setAppId(appIdValue);
+            
+            const setMessage: Message = {
+              type: 'system',
+              content: `Application ID set to: ${appIdValue}`
+            };
+            setMessages(prev => [...prev, setMessage]);
+          } else {
+            // Clear app ID
+            await saveAppId('');
+            setAppId('');
+            
+            const clearMessage: Message = {
+              type: 'system',
+              content: 'Application ID cleared'
+            };
+            setMessages(prev => [...prev, clearMessage]);
+          }
+        } catch (error) {
+          const errorMessage: Message = {
+            type: 'system',
+            content: `❌ Error setting application ID: ${(error as Error).message}`
+          };
+          setMessages(prev => [...prev, errorMessage]);
+        }
+        break;
+      }
+      case 'info:application': {
+        try {
+          const currentAppId = appId || config.appId;
+          if (!currentAppId) {
+            throw new Error('No application ID configured');
+          }
+          
+          const token = await getToken();
+          const headers: any = {
+            'X-App-ID': currentAppId
+          };
+          
+          if (config.apiKey) {
+            headers['Authorization'] = `Bearer ${config.apiKey}`;
+          }
+          
+          if (token) {
+            headers['X-User-Auth'] = token;
+          }
+          
+          const response = await fetch(`${endpoint.replace('/v1', '')}/auth/app_info`, {
+            method: 'GET',
+            headers
+          });
+          
+          if (!response.ok) {
+            throw new Error(`Failed to fetch application info: ${response.status} ${response.statusText}`);
+          }
+          
+          const data = await response.json();
+          const { id, name, description, disabled, admin } = data;
+          
+          const appInfoContent = [
+            `🔷 === APPLICATION INFO ===`,
+            ``,
+            `📝 Basic Info:`,
+            `  • ID: ${id}`,
+            `  • Name: ${name}`,
+            `  • Description: ${description || 'N/A'}`,
+            `  • Status: ${disabled ? '❌ Disabled' : '✅ Enabled'}`,
+            `  • Admin: ${admin ? '⚠️ Yes' : 'No'}`
+          ].join('\n');
+          
+          const appInfoMessage: Message = {
+            type: 'system',
+            content: appInfoContent,
+            tool_call_id: 'app-info'
+          };
+          setMessages(prev => [...prev, appInfoMessage]);
+          
+          // Update app name for status bar
+          setAppName(name);
+          
+        } catch (error) {
+          const errorMessage: Message = {
+            type: 'system',
+            content: `❌ Error fetching application info: ${(error as Error).message}`
+          };
+          setMessages(prev => [...prev, errorMessage]);
+        }
+        break;
+      }
       case 'help': {
         const helpMessage: Message = {
           type: 'system',
-          content: 'Available commands:\n/login - Authenticate with Shapes API\n/logout - Clear authentication token\n/user [id] - Set user ID (empty to clear)\n/channel [id] - Set channel ID (empty to clear)\n/info [username] - Show shape profile info (current shape if no username provided)\n/images - List available image files\n/image [filename] - Upload an image (specify filename or auto-select first)\n/images:clear - Clear uploaded images\n/clear - Clear chat history\n/tools - List available tools\n/tools:enable <name> - Enable a tool\n/tools:disable <name> - Disable a tool\n/exit - Exit the application\n/help - Show this help message'
+          content: 'Available commands:\n/login - Authenticate with Shapes API\n/logout - Clear authentication token\n/user [id] - Set user ID (empty to clear)\n/channel [id] - Set channel ID (empty to clear)\n/application [id] - Set application ID (empty to clear)\n/info [username] - Show shape profile info (current shape if no username provided)\n/info:application - Show current application info\n/images - List available image files\n/image [filename] - Upload an image (specify filename or auto-select first)\n/images:clear - Clear uploaded images\n/clear - Clear chat history\n/tools - List available tools\n/tools:enable <name> - Enable a tool\n/tools:disable <name> - Disable a tool\n/exit - Exit the application\n/help - Show this help message'
         };
         setMessages(prev => [...prev, helpMessage]);
         break;
@@ -1043,6 +1220,7 @@ export const App = () => {
           inputMode={inputMode}
           userId={userId}
           channelId={channelId}
+          appName={appName}
           onRemoveImage={handleRemoveImage}
           onEscape={() => {
             if (inputMode === 'awaiting_auth') {

@@ -101,6 +101,19 @@ export const MessageList = ({ messages, shapeName }: MessageListProps) => {
                   </Text>
                 );
               }
+
+              // Admin field with special coloring
+              if (line.includes('• Admin:')) {
+                const isAdmin = value.includes('Yes');
+                const adminText = value.replace('⚠️ ', '');
+                return (
+                  <Text key={lineIndex}>
+                    <Text color="gray">{indent}{fieldName}: </Text>
+                    {isAdmin && <Text>⚠️ </Text>}
+                    <Text color={isAdmin ? 'yellow' : 'gray'}>{adminText}</Text>
+                  </Text>
+                );
+              }
               
               // Description field (value starts on new line, so only show field name)
               if (line.includes('• Description:') && value.trim() === '') {
@@ -138,6 +151,20 @@ export const MessageList = ({ messages, shapeName }: MessageListProps) => {
             }
           }
           
+          // Single-line Description field with value
+          if (line.includes('• Description:') && !line.endsWith('Description:')) {
+            const match = line.match(/^(\s*• Description: )(.+)$/);
+            if (match) {
+              const [, fieldPart, descValue] = match;
+              return (
+                <Text key={lineIndex}>
+                  <Text color="gray">{fieldPart}</Text>
+                  <Text color="white">{descValue}</Text>
+                </Text>
+              );
+            }
+          }
+          
           // Tag/array items (indented with bullets)
           if (line.match(/^    • /)) {
             return <Text key={lineIndex} color="gray">{line}</Text>;
@@ -158,6 +185,18 @@ export const MessageList = ({ messages, shapeName }: MessageListProps) => {
   const renderMessage = (message: Message, index: number) => {
     // Special rendering for shape info
     if (message.type === 'system' && message.tool_call_id === 'shape-info') {
+      return (
+        <Box key={`message-${index}`} flexDirection="column" marginBottom={1}>
+          <Text color="magenta">System:</Text>
+          <Box marginLeft={2}>
+            {renderShapeInfo(message.content)}
+          </Box>
+        </Box>
+      );
+    }
+
+    // Special rendering for app info
+    if (message.type === 'system' && message.tool_call_id === 'app-info') {
       return (
         <Box key={`message-${index}`} flexDirection="column" marginBottom={1}>
           <Text color="magenta">System:</Text>
