@@ -4,7 +4,7 @@ import http from 'node:http';
 import https from 'node:https';
 import { URL } from 'node:url';
 import zlib from 'node:zlib';
-import { getApiServerBaseUrl } from './src/utils.js';
+import { getApiServerBaseUrl } from './utils.js';
 import chalk from 'chalk';
 
 /**
@@ -15,7 +15,7 @@ import chalk from 'chalk';
 function maskToken(token) {
   const t = String(token || '');
   const last = t.slice(-4);
-  return '****' + last;
+  return `****${last}`;
 }
 
 // Role-based coloring for JSON bodies
@@ -144,7 +144,7 @@ function prettyPrintRequest(req, bodyBuf) {
   }
 
   // Body
-  if (bodyBuf && bodyBuf.length) {
+  if (bodyBuf?.length) {
     console.log(chalk.bold('Body:'));
     const str = bodyBuf.toString('utf8');
     try {
@@ -166,7 +166,7 @@ function prettyPrintResponse(res, bodyBuf) {
     const titleColor = code >= 200 && code < 300 ? chalk.green
                       : code >= 300 && code < 400 ? chalk.yellow
                       : chalk.red;
-    console.log(titleColor.bold.underline(`\n=== Response ===`));
+    console.log(titleColor.bold.underline('\n=== Response ==='));
   }
   console.log(chalk.bold('Status:'), res.statusCode);
 
@@ -198,9 +198,9 @@ function prettyPrintResponse(res, bodyBuf) {
   }
 
   // Body
-  if (bodyBuf && bodyBuf.length) {
+  if (bodyBuf?.length) {
     console.log(chalk.bold('Body:'));
-    
+
     // Check if response is gzipped
     const contentEncoding = res.headers['content-encoding'];
     if (contentEncoding === 'gzip') {
@@ -282,7 +282,7 @@ const server = http.createServer((clientReq, clientRes) => {
       console.error(chalk.red('Upstream error:'), err.message);
       // Respond with 502 Bad Gateway on error
       clientRes.writeHead(502);
-      clientRes.end('Bad Gateway: ' + err.message);
+      clientRes.end(`Bad Gateway: ${err.message}`);
     });
 
     // Send buffered request body
@@ -295,7 +295,7 @@ const server = http.createServer((clientReq, clientRes) => {
 
 // Start listening
 server.listen(PORT, () => {
-  console.log(chalk.magenta(`Debugger proxy v1.0.0`));
+  console.log(chalk.magenta('Debugger proxy v1.0.0'));
   console.log(chalk.magenta('→ Listening on  :'), `http://localhost:${PORT}`);
   console.log(chalk.magenta('→ Forwarding to :'), baseUrl);
   // TODO: initialize CLI UI (Ink/React) here

@@ -88,6 +88,33 @@ export SHAPESINC_APP_ID="your-app-id"
 export SHAPESINC_SHAPE_USERNAME="your-username"
 ```
 
+## Global Installation
+
+To install shapes-cli as a global command that can be run from anywhere:
+
+### Install
+```bash
+./install.sh
+```
+
+This script will:
+- Install dependencies
+- Build the project
+- Run lint and type checks
+- Link the package globally
+- Verify the `shapes-cli` command is available
+
+After installation, you can run `shapes-cli` from any directory.
+
+### Uninstall
+```bash
+./uninstall.sh
+```
+
+This will remove the global `shapes-cli` command while preserving your local configuration files in `~/.shapes-cli/`.
+
+**Note:** When using the global command, API keys can be set using the `/key` command within the application, or by setting the `SHAPESINC_API_KEY` environment variable.
+
 ## Usage
 
 ### Interactive Mode (Default)

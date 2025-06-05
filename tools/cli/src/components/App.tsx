@@ -40,6 +40,7 @@ const TOOLS_STATE_FILE = path.join(os.homedir(), '.shapes-cli', 'tools-state.jso
 const USER_ID_FILE = path.join(os.homedir(), '.shapes-cli', 'user-id.txt');
 const CHANNEL_ID_FILE = path.join(os.homedir(), '.shapes-cli', 'channel-id.txt');
 const APP_ID_FILE = path.join(os.homedir(), '.shapes-cli', 'app-id.txt');
+const API_KEY_FILE = path.join(os.homedir(), '.shapes-cli', 'api-key.txt');
 
 const saveToolsState = async (tools: Tool[]): Promise<void> => {
   try {
@@ -148,6 +149,36 @@ const loadAppId = async (): Promise<string | null> => {
   }
 };
 
+const saveApiKey = async (apiKey: string): Promise<void> => {
+  try {
+    const dir = path.dirname(API_KEY_FILE);
+    await fs.mkdir(dir, { recursive: true });
+    if (apiKey) {
+      await fs.writeFile(API_KEY_FILE, apiKey, 'utf-8');
+    } else {
+      // Remove file if apiKey is empty
+      try {
+        await fs.unlink(API_KEY_FILE);
+      } catch (_error) {
+        // Ignore if file doesn't exist
+      }
+    }
+  } catch (_error) {
+    // Ignore save errors to not break the app
+    console.warn('Failed to save API key:', _error);
+  }
+};
+
+const loadApiKey = async (): Promise<string> => {
+  try {
+    const data = await fs.readFile(API_KEY_FILE, 'utf-8');
+    return data.trim();
+  } catch (_error) {
+    // Return empty string if file doesn't exist or is invalid
+    return '';
+  }
+};
+
 export const App = () => {
   const { stdout } = useStdout();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -158,12 +189,13 @@ export const App = () => {
   const [authStatus, setAuthStatus] = useState<string>('');
   const [endpoint, setEndpoint] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
-  const [inputMode, setInputMode] = useState<'normal' | 'awaiting_auth'>('normal');
+  const [inputMode, setInputMode] = useState<'normal' | 'awaiting_auth' | 'awaiting_key'>('normal');
   const [userId, setUserId] = useState<string>('');
   const [channelId, setChannelId] = useState<string>('');
   const [appId, setAppId] = useState<string>('');
   const [appName, setAppName] = useState<string>('');
-  
+  const [apiKey, setApiKey] = useState<string>('');
+
   const terminalHeight = stdout?.rows || 24;
   const terminalWidth = stdout?.columns || 80;
 
@@ -172,61 +204,83 @@ export const App = () => {
       try {
         // Initialize config with auto-discovered endpoints
         const discoveredConfig = await initConfig();
-        
+
         // Check for API key or user authentication
         const token = await getToken();
-        if (!discoveredConfig.apiKey && !token) {
-          setError('No API key configured and not authenticated. Please set SHAPESINC_API_KEY or use /login to authenticate.');
-          return;
-        }
 
-        // Load saved user ID, channel ID, and app ID first
+        // Load saved user ID, channel ID, app ID, and API key first
         const savedUserId = await loadUserId();
         const savedChannelId = await loadChannelId();
         const savedAppId = await loadAppId();
+        const savedApiKey = await loadApiKey();
         setUserId(savedUserId);
         setChannelId(savedChannelId);
-        
+
+        // Set API key from saved file or config
+        if (savedApiKey && !apiKey) {
+          setApiKey(savedApiKey);
+        } else if (!apiKey) {
+          setApiKey(discoveredConfig.apiKey);
+        }
+
+        // Calculate current API key for client creation
+        const currentApiKey = apiKey || savedApiKey || discoveredConfig.apiKey;
+
+        // Show system message if no API key and no auth token
+        if (!currentApiKey && !token) {
+          const noAuthMessage: Message = {
+            type: 'system',
+            content: 'No API key configured and not authenticated. Please enter your API key using /key <your-api-key>.'
+          };
+          setMessages(prev => [...prev, noAuthMessage]);
+        }
+
         // Handle app ID: null = use config default, "" = user cleared, "uuid" = user set
         const effectiveAppId = savedAppId !== null ? savedAppId : discoveredConfig.appId;
         setAppId(effectiveAppId);
 
-        // Create client with API key or user authentication
-        const clientConfig: any = {
-          apiKey: discoveredConfig.apiKey,
-          baseURL: discoveredConfig.apiUrl,
-          defaultHeaders: {},
-        };
+        // Create client with API key or user authentication (currentApiKey already calculated above)
 
-        // Add app ID header if set
-        if (effectiveAppId) {
-          clientConfig.defaultHeaders['X-App-ID'] = effectiveAppId;
+        // Only create client if we have an API key or token
+        if (currentApiKey || token) {
+          const clientConfig: any = {
+            apiKey: currentApiKey,
+            baseURL: discoveredConfig.apiUrl,
+            defaultHeaders: {},
+          };
+
+          // Add app ID header if set
+          if (effectiveAppId) {
+            clientConfig.defaultHeaders['X-App-ID'] = effectiveAppId;
+          }
+
+          // Add user auth header if available
+          if (token) {
+            clientConfig.defaultHeaders['X-User-Auth'] = token;
+          }
+
+          // Add user ID header if set
+          if (savedUserId) {
+            clientConfig.defaultHeaders['X-User-ID'] = savedUserId;
+          }
+
+          // Add channel ID header if set
+          if (savedChannelId) {
+            clientConfig.defaultHeaders['X-Channel-ID'] = savedChannelId;
+          }
+
+          const shapesClient = new OpenAI(clientConfig);
+          setClient(shapesClient);
+        } else {
+          setClient(null);
         }
-
-        // Add user auth header if available
-        if (token) {
-          clientConfig.defaultHeaders['X-User-Auth'] = token;
-        }
-
-        // Add user ID header if set
-        if (savedUserId) {
-          clientConfig.defaultHeaders['X-User-ID'] = savedUserId;
-        }
-
-        // Add channel ID header if set
-        if (savedChannelId) {
-          clientConfig.defaultHeaders['X-Channel-ID'] = savedChannelId;
-        }
-
-        const shapesClient = new OpenAI(clientConfig);
-        setClient(shapesClient);
 
         // Set shape name, auth status, and endpoint
         setShapeName(discoveredConfig.model);
         if (token) {
           setAuthStatus(`Authenticated (${token.slice(-4)})`);
-        } else if (discoveredConfig.apiKey) {
-          setAuthStatus(`API Key (${discoveredConfig.apiKey.slice(-4)})`);
+        } else if (currentApiKey) {
+          setAuthStatus(`API Key (${currentApiKey.slice(-4)})`);
         } else {
           setAuthStatus('No Auth');
         }
@@ -272,7 +326,7 @@ export const App = () => {
     };
 
     initialize();
-  }, [userId, channelId]);
+  }, [userId, channelId, apiKey]);
 
   // Fetch app name when appId changes
   useEffect(() => {
@@ -287,20 +341,20 @@ export const App = () => {
         const headers: any = {
           'X-App-ID': appId
         };
-        
+
         if (config.apiKey) {
           headers['Authorization'] = `Bearer ${config.apiKey}`;
         }
-        
+
         if (token) {
           headers['X-User-Auth'] = token;
         }
-        
+
         const response = await fetch(`${endpoint.replace('/v1', '')}/auth/app_info`, {
           method: 'GET',
           headers
         });
-        
+
         if (response.ok) {
           const data = await response.json();
           setAppName(data.name);
@@ -308,7 +362,7 @@ export const App = () => {
           // If we can't fetch the name, show the app ID instead
           setAppName(appId);
         }
-      } catch (error) {
+      } catch (_error) {
         // If we can't fetch the name, show the app ID instead
         setAppName(appId);
       }
@@ -324,6 +378,12 @@ export const App = () => {
       return;
     }
 
+    // Handle awaiting API key
+    if (inputMode === 'awaiting_key') {
+      await handleApiKey(content);
+      return;
+    }
+
     // Handle slash commands
     if (content.startsWith('/')) {
       await handleSlashCommand(content.slice(1));
@@ -331,9 +391,9 @@ export const App = () => {
     }
 
     if (!client) {
-      const systemMessage: Message = { 
-        type: 'system', 
-        content: 'No API key configured and not authenticated. Please set SHAPESINC_API_KEY or use /login to authenticate.' 
+      const systemMessage: Message = {
+        type: 'system',
+        content: 'No API key configured and not authenticated. Please use /key <your-api-key> or /login to authenticate.'
       };
       setMessages(prev => [...prev, systemMessage]);
       return;
@@ -344,7 +404,7 @@ export const App = () => {
     const currentImages = messageImages || currentImageUrls;
     const userMessage: Message = { type: 'user', content, images: currentImages };
     setMessages(prev => [...prev, userMessage]);
-    
+
     // Clear images after sending
     setImages([]);
 
@@ -355,7 +415,7 @@ export const App = () => {
         messageContent = [
           { type: "text", text: content },
           ...currentImages.map(img => ({
-            type: "image_url", 
+            type: "image_url",
             image_url: { url: img }
           }))
         ];
@@ -399,11 +459,11 @@ export const App = () => {
       };
 
       const response = await client.chat.completions.create(request);
-      
+
       // Check for tool calls
       if (response.choices?.[0]?.message?.tool_calls) {
         const toolCalls = response.choices[0].message.tool_calls;
-        
+
         // Add assistant message with tool calls
         const assistantMessage: Message = {
           type: 'assistant',
@@ -411,7 +471,7 @@ export const App = () => {
           tool_calls: toolCalls
         };
         setMessages(prev => [...prev, assistantMessage]);
-        
+
         // Process each tool call
         const toolResults: Message[] = [];
         for (const toolCall of toolCalls) {
@@ -422,10 +482,10 @@ export const App = () => {
             tool_call_id: toolCall.id
           });
         }
-        
+
         // Add tool result messages
         setMessages(prev => [...prev, ...toolResults]);
-        
+
         // Make second API call with tool results
         const updatedMessages = [
           ...messages.filter(msg => msg.type !== 'system' && msg.type !== 'tool' && msg.type !== 'error').map(msg => {
@@ -448,8 +508,8 @@ export const App = () => {
             }
           }),
           { role: 'user' as const, content: messageContent },
-          { 
-            role: 'assistant' as const, 
+          {
+            role: 'assistant' as const,
             content: response.choices[0]?.message?.content || '',
             tool_calls: toolCalls.map(tc => ({
               id: tc.id,
@@ -466,7 +526,7 @@ export const App = () => {
             tool_call_id: tr.tool_call_id!
           }))
         ];
-        
+
         const secondResponse = await client.chat.completions.create({
           model: config.model,
           messages: updatedMessages,
@@ -479,11 +539,11 @@ export const App = () => {
             },
           })),
         });
-        
+
         // Check if second response also has tool calls
         if (secondResponse.choices?.[0]?.message?.tool_calls) {
           const secondToolCalls = secondResponse.choices[0].message.tool_calls;
-          
+
           // Add assistant message with second tool calls
           const secondAssistantMessage: Message = {
             type: 'assistant',
@@ -491,7 +551,7 @@ export const App = () => {
             tool_calls: secondToolCalls
           };
           setMessages(prev => [...prev, secondAssistantMessage]);
-          
+
           // Process second set of tool calls
           const secondToolResults: Message[] = [];
           for (const toolCall of secondToolCalls) {
@@ -502,15 +562,15 @@ export const App = () => {
               tool_call_id: toolCall.id
             });
           }
-          
+
           // Add second tool result messages
           setMessages(prev => [...prev, ...secondToolResults]);
-          
+
           // Make third API call with second tool results
           const finalMessages = [
             ...updatedMessages,
-            { 
-              role: 'assistant' as const, 
+            {
+              role: 'assistant' as const,
               content: secondResponse.choices[0]?.message?.content || '',
               tool_calls: secondToolCalls.map(tc => ({
                 id: tc.id,
@@ -527,7 +587,7 @@ export const App = () => {
               tool_call_id: tr.tool_call_id!
             }))
           ];
-          
+
           const thirdResponse = await client.chat.completions.create({
             model: config.model,
             messages: finalMessages,
@@ -540,13 +600,13 @@ export const App = () => {
               },
             })),
           });
-          
+
           const finalMessage: Message = {
             type: 'assistant',
             content: thirdResponse.choices[0]?.message?.content || '',
           };
           setMessages(prev => [...prev, finalMessage]);
-          
+
         } else {
           // No more tool calls, add the final message
           const finalMessage: Message = {
@@ -555,7 +615,7 @@ export const App = () => {
           };
           setMessages(prev => [...prev, finalMessage]);
         }
-        
+
       } else {
         // No tool calls, just add the assistant message
         const assistantMessage: Message = {
@@ -568,7 +628,7 @@ export const App = () => {
       const error = err as any;
       const status = error.status || error.code || 'Unknown';
       const message = error.message || 'An unexpected error occurred';
-      
+
       const errorMessage: Message = {
         type: 'error',
         content: `API Error: ${status} ${message}`
@@ -580,14 +640,14 @@ export const App = () => {
   const handleToolCall = async (toolCall: any): Promise<string> => {
     try {
       const args = JSON.parse(toolCall.function.arguments);
-      
+
       switch (toolCall.function.name) {
         case 'ping':
           return 'pong';
-        
+
         case 'echo':
           return args.message || 'No message provided';
-        
+
         default:
           return `Unknown tool: ${toolCall.function.name}`;
       }
@@ -598,7 +658,7 @@ export const App = () => {
 
   const handleSlashCommand = async (command: string) => {
     const [cmd, ...args] = command.split(' ');
-    
+
     switch (cmd.toLowerCase()) {
       case 'login':
         await handleLogin();
@@ -606,6 +666,24 @@ export const App = () => {
       case 'logout':
         await handleLogout();
         break;
+      case 'key': {
+        const keyValue = args.join(' ').trim();
+        if (keyValue === '') {
+          // Clear API key and prompt for new one
+          setApiKey('');
+          await saveApiKey('');
+          setInputMode('awaiting_key');
+          const keyMessage: Message = {
+            type: 'system',
+            content: 'API key cleared. Please enter your new API key:'
+          };
+          setMessages(prev => [...prev, keyMessage]);
+        } else {
+          // Set API key directly
+          await handleApiKey(keyValue);
+        }
+        break;
+      }
       case 'exit':
       case 'quit':
         process.exit(0);
@@ -615,7 +693,7 @@ export const App = () => {
         try {
           const result = await uploadImage(filename);
           setImages(prev => [...prev, { dataUrl: result.dataUrl, filename: result.filename, size: result.size }]);
-          
+
           const sizeKB = Math.round(result.size / 1024);
           const totalImages = images.length + 1;
           const imageMessage: Message = {
@@ -636,13 +714,13 @@ export const App = () => {
         try {
           const imageFiles = await listImageFiles();
           let content = '';
-          
+
           // Show queued images first
           if (images.length > 0) {
             const queuedList = images.map((img, i) => `  ${i + 1}. ${img.filename} (${Math.round(img.size / 1024)}KB)`).join('\n');
             content += `Queued for next message (${images.length}):\n${queuedList}\n\n`;
           }
-          
+
           // Show available files in directory
           if (imageFiles.length > 0) {
             const availableList = imageFiles.map(file => `  • ${file}`).join('\n');
@@ -650,13 +728,13 @@ export const App = () => {
           } else {
             content += 'No image files found in current directory.';
           }
-          
+
           if (images.length === 0 && imageFiles.length === 0) {
             content = 'No images queued and no image files found in current directory.';
           }
-          
+
           content += '\n\nUse "/image <filename>" to upload a file, or "/image" to upload the first available file.';
-          
+
           const listMessage: Message = {
             type: 'system',
             content
@@ -695,7 +773,7 @@ export const App = () => {
           // List all tools
           const enabledCount = availableTools.filter(t => t.enabled).length;
           let content = `Available tools (${enabledCount} enabled):\n`;
-          
+
           if (availableTools.length === 0) {
             content += 'No tools available.';
           } else {
@@ -704,9 +782,9 @@ export const App = () => {
               content += `  ${status} ${tool.name} - ${tool.description}\n`;
             });
           }
-          
+
           content += '\nUse "/tools:enable <name>" to enable a tool or "/tools:disable <name>" to disable it.';
-          
+
           const toolsMessage: Message = {
             type: 'system',
             content
@@ -725,7 +803,7 @@ export const App = () => {
           setMessages(prev => [...prev, errorMessage]);
           break;
         }
-        
+
         const toolIndex = availableTools.findIndex(t => t.name === toolName);
         if (toolIndex === -1) {
           const errorMessage: Message = {
@@ -735,14 +813,14 @@ export const App = () => {
           setMessages(prev => [...prev, errorMessage]);
           break;
         }
-        
+
         const updatedTools = [...availableTools];
         updatedTools[toolIndex].enabled = true;
         setAvailableTools(updatedTools);
-        
+
         // Save state to disk
         await saveToolsState(updatedTools);
-        
+
         const successMessage: Message = {
           type: 'system',
           content: `Tool "${toolName}" enabled.`
@@ -760,7 +838,7 @@ export const App = () => {
           setMessages(prev => [...prev, errorMessage]);
           break;
         }
-        
+
         const toolIndex = availableTools.findIndex(t => t.name === toolName);
         if (toolIndex === -1) {
           const errorMessage: Message = {
@@ -770,14 +848,14 @@ export const App = () => {
           setMessages(prev => [...prev, errorMessage]);
           break;
         }
-        
+
         const updatedTools = [...availableTools];
         updatedTools[toolIndex].enabled = false;
         setAvailableTools(updatedTools);
-        
+
         // Save state to disk
         await saveToolsState(updatedTools);
-        
+
         const successMessage: Message = {
           type: 'system',
           content: `Tool "${toolName}" disabled.`
@@ -835,13 +913,13 @@ export const App = () => {
         try {
           const username = args[0] || config.username;
           const response = await fetch(`https://api.shapes.inc/shapes/public/${username}`);
-          
+
           if (!response.ok) {
             throw new Error(`Failed to fetch shape info: ${response.status} ${response.statusText}`);
           }
-          
+
           const data = await response.json();
-          
+
           const {
             id, name, username: shapeUsername, search_description, search_tags_v2,
             created_ts, user_count, message_count, tagline, typical_phrases,
@@ -849,7 +927,7 @@ export const App = () => {
             avatar_url, avatar, banner, shape_settings, example_prompts,
             enabled, allow_user_engine_override, error_message, wack_message
           } = data;
-          
+
           const formatDate = (timestamp: number) => {
             return new Date(timestamp * 1000).toLocaleDateString('en-US', {
               year: 'numeric',
@@ -857,7 +935,7 @@ export const App = () => {
               day: 'numeric'
             });
           };
-          
+
           const formatArray = (arr: any[], label: string) => {
             if (!arr || arr.length === 0) return '';
             if (label === 'Screenshots') {
@@ -865,7 +943,7 @@ export const App = () => {
             }
             return arr.map(item => `• ${item}`).join('\n    ');
           };
-          
+
           const infoContent = [
             `🔷 === SHAPE PROFILE: ${name || shapeUsername} ===`,
             ``,
@@ -910,7 +988,7 @@ export const App = () => {
             error_message ? `  • Error Message: ${error_message}` : '',
             wack_message ? `  • Wack Message: ${wack_message}` : ''
           ].filter(line => line !== '').join('\n');
-          
+
           const infoMessage: Message = {
             type: 'system',
             content: infoContent,
@@ -918,7 +996,7 @@ export const App = () => {
             tool_call_id: 'shape-info'
           };
           setMessages(prev => [...prev, infoMessage]);
-          
+
         } catch (error) {
           const errorMessage: Message = {
             type: 'system',
@@ -931,17 +1009,17 @@ export const App = () => {
       case 'application': {
         try {
           const appIdValue = args[0]?.trim();
-          
+
           if (appIdValue) {
             // Validate UUID format
             const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
             if (!uuidRegex.test(appIdValue)) {
               throw new Error('Invalid UUID format. Please provide a valid application ID.');
             }
-            
+
             await saveAppId(appIdValue);
             setAppId(appIdValue);
-            
+
             const setMessage: Message = {
               type: 'system',
               content: `Application ID set to: ${appIdValue}`
@@ -951,7 +1029,7 @@ export const App = () => {
             // Clear app ID
             await saveAppId('');
             setAppId('');
-            
+
             const clearMessage: Message = {
               type: 'system',
               content: 'Application ID cleared'
@@ -973,32 +1051,32 @@ export const App = () => {
           if (!currentAppId) {
             throw new Error('No application ID configured');
           }
-          
+
           const token = await getToken();
           const headers: any = {
             'X-App-ID': currentAppId
           };
-          
+
           if (config.apiKey) {
             headers['Authorization'] = `Bearer ${config.apiKey}`;
           }
-          
+
           if (token) {
             headers['X-User-Auth'] = token;
           }
-          
+
           const response = await fetch(`${endpoint.replace('/v1', '')}/auth/app_info`, {
             method: 'GET',
             headers
           });
-          
+
           if (!response.ok) {
             throw new Error(`Failed to fetch application info: ${response.status} ${response.statusText}`);
           }
-          
+
           const data = await response.json();
           const { id, name, description, disabled, admin } = data;
-          
+
           const appInfoContent = [
             `🔷 === APPLICATION INFO ===`,
             ``,
@@ -1009,17 +1087,17 @@ export const App = () => {
             `  • Status: ${disabled ? '❌ Disabled' : '✅ Enabled'}`,
             `  • Admin: ${admin ? '⚠️ Yes' : 'No'}`
           ].join('\n');
-          
+
           const appInfoMessage: Message = {
             type: 'system',
             content: appInfoContent,
             tool_call_id: 'app-info'
           };
           setMessages(prev => [...prev, appInfoMessage]);
-          
+
           // Update app name for status bar
           setAppName(name);
-          
+
         } catch (error) {
           const errorMessage: Message = {
             type: 'system',
@@ -1032,7 +1110,7 @@ export const App = () => {
       case 'help': {
         const helpMessage: Message = {
           type: 'system',
-          content: 'Available commands:\n/login - Authenticate with Shapes API\n/logout - Clear authentication token\n/user [id] - Set user ID (empty to clear)\n/channel [id] - Set channel ID (empty to clear)\n/application [id] - Set application ID (empty to clear)\n/info [username] - Show shape profile info (current shape if no username provided)\n/info:application - Show current application info\n/images - List available image files\n/image [filename] - Upload an image (specify filename or auto-select first)\n/images:clear - Clear uploaded images\n/clear - Clear chat history\n/tools - List available tools\n/tools:enable <name> - Enable a tool\n/tools:disable <name> - Disable a tool\n/exit - Exit the application\n/help - Show this help message'
+          content: 'Available commands:\n/login - Authenticate with Shapes API\n/logout - Clear authentication token\n/key [api-key] - Set API key (empty to clear and prompt for new one)\n/user [id] - Set user ID (empty to clear)\n/channel [id] - Set channel ID (empty to clear)\n/application [id] - Set application ID (empty to clear)\n/info [username] - Show shape profile info (current shape if no username provided)\n/info:application - Show current application info\n/images - List available image files\n/image [filename] - Upload an image (specify filename or auto-select first)\n/images:clear - Clear uploaded images\n/clear - Clear chat history\n/tools - List available tools\n/tools:enable <name> - Enable a tool\n/tools:disable <name> - Disable a tool\n/exit - Exit the application\n/help - Show this help message'
         };
         setMessages(prev => [...prev, helpMessage]);
         break;
@@ -1051,18 +1129,18 @@ export const App = () => {
   const handleLogin = async () => {
     try {
       const authUrl = await getAuthUrl();
-      
+
       const loginMessage: Message = {
         type: 'system',
         content: `Opening browser for authentication...\nAuth URL: ${authUrl}\n\nAfter authorizing, please enter the code you receive:`
       };
       setMessages(prev => [...prev, loginMessage]);
-      
+
       await open(authUrl);
-      
+
       // Switch to auth code input mode
       setInputMode('awaiting_auth');
-      
+
     } catch (err) {
       const errorMessage: Message = {
         type: 'system',
@@ -1076,10 +1154,10 @@ export const App = () => {
     try {
       const token = await authenticate(code);
       await saveToken(token);
-      
+
       // Update auth status
       setAuthStatus(`Authenticated (${token.slice(-4)})`);
-      
+
       // Re-initialize client with new token
       const discoveredConfig = await initConfig();
       const clientConfig: any = {
@@ -1100,26 +1178,64 @@ export const App = () => {
       if (channelId) {
         clientConfig.defaultHeaders['X-Channel-ID'] = channelId;
       }
-      
+
       const shapesClient = new OpenAI(clientConfig);
       setClient(shapesClient);
-      
+
       const successMessage: Message = {
         type: 'system',
         content: 'Successfully authenticated!'
       };
       setMessages(prev => [...prev, successMessage]);
-      
+
       // Return to normal input mode
       setInputMode('normal');
-      
+
     } catch (err) {
       const errorMessage: Message = {
         type: 'system',
         content: `Authentication failed: ${(err as Error).message}`
       };
       setMessages(prev => [...prev, errorMessage]);
-      
+
+      // Return to normal input mode on error
+      setInputMode('normal');
+    }
+  };
+
+  const handleApiKey = async (key: string) => {
+    try {
+      // Validate API key format (basic check for non-empty string)
+      if (!key || key.trim().length === 0) {
+        const errorMessage: Message = {
+          type: 'system',
+          content: 'Invalid API key. Please provide a valid API key.'
+        };
+        setMessages(prev => [...prev, errorMessage]);
+        return;
+      }
+
+      // Set the API key and save it to file
+      const trimmedKey = key.trim();
+      setApiKey(trimmedKey);
+      await saveApiKey(trimmedKey);
+
+      const successMessage: Message = {
+        type: 'system',
+        content: `API key set successfully (${trimmedKey.slice(-4)})`
+      };
+      setMessages(prev => [...prev, successMessage]);
+
+      // Return to normal input mode
+      setInputMode('normal');
+
+    } catch (err) {
+      const errorMessage: Message = {
+        type: 'system',
+        content: `Failed to set API key: ${(err as Error).message}`
+      };
+      setMessages(prev => [...prev, errorMessage]);
+
       // Return to normal input mode on error
       setInputMode('normal');
     }
@@ -1138,7 +1254,7 @@ export const App = () => {
       }
 
       await clearToken();
-      
+
       // Re-initialize with API key if available
       const discoveredConfig = await initConfig();
       if (discoveredConfig.apiKey) {
@@ -1167,13 +1283,13 @@ export const App = () => {
         setClient(null);
         setAuthStatus('No Auth');
       }
-      
+
       const logoutMessage: Message = {
         type: 'system',
         content: 'Successfully logged out! You can use /login to authenticate again.'
       };
       setMessages(prev => [...prev, logoutMessage]);
-      
+
     } catch (err) {
       const errorMessage: Message = {
         type: 'system',
@@ -1206,11 +1322,11 @@ export const App = () => {
       <Box height={messageAreaHeight} flexDirection="column" overflow="hidden">
         <MessageList messages={messages} shapeName={shapeName} />
       </Box>
-      
+
       {/* Fixed input area at bottom */}
       <Box flexShrink={0}>
-        <ChatInput 
-          onSend={handleSendMessage} 
+        <ChatInput
+          onSend={handleSendMessage}
           images={images}
           enabledToolsCount={availableTools.filter(t => t.enabled).length}
           shapeName={shapeName}
@@ -1228,6 +1344,13 @@ export const App = () => {
               const cancelMessage: Message = {
                 type: 'system',
                 content: 'Authentication cancelled.'
+              };
+              setMessages(prev => [...prev, cancelMessage]);
+            } else if (inputMode === 'awaiting_key') {
+              setInputMode('normal');
+              const cancelMessage: Message = {
+                type: 'system',
+                content: 'API key entry cancelled.'
               };
               setMessages(prev => [...prev, cancelMessage]);
             }

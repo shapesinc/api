@@ -76,7 +76,7 @@ export async function uploadImage(filename?: string): Promise<ImageUploadResult>
       size: stats.size,
     };
   } catch (error) {
-    throw error; // Re-throw with original message
+    throw new Error(`Failed to upload image: ${(error as Error).message}`);
   }
 }
 

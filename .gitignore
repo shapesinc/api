@@ -15,6 +15,8 @@ __pycache__/
 venv/
 *.egg-info/
 build/
+.next/
+.claude/
 
 # Editor directories and files
 .vscode/*

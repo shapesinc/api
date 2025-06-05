@@ -1,22 +1,58 @@
 {
-  "name": "shape-debug",
-  "version": "0.1.0",
-  "description": "CLI tool to proxy Shapes API traffic and provide a React/Ink-driven UI for live request/response logging and interactive slash commands.",
-  "main": "index.js",
-  "type": "module",
-  "bin": {
-    "shape-debug": "index.js"
-  },
-  "scripts": {
-    "start": "node index.js"
-  },
-  "keywords": ["proxy", "cli", "shapes", "debug"],
-  "author": "",
-  "license": "MIT",
-  "dependencies": {
-    "chalk": "^5.0.0"
-  },
-  "engines": {
-    "node": ">=14"
-  }
+    "name": "@shapesinc/debugger",
+    "version": "1.0.0",
+    "description": "CLI tool to proxy Shapes API traffic and provide a React/Ink-driven UI for live request/response logging and interactive slash commands.",
+    "copyright": "Copyright © 2025 Shapes, Inc",
+    "author": {
+        "name": "Shapes Inc.",
+        "email": "hi@shapes.inc",
+        "url": "https://shapes.inc"
+    },
+    "keywords": [
+        "proxy",
+        "cli",
+        "shapes",
+        "debug"
+    ],
+    "license": "MIT",
+    "private": true,
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/shapesinc/api.git"
+    },
+    "type": "module",
+    "main": "dist/index.js",
+    "bin": {
+        "shapes-debug": "dist/index.js"
+    },
+    "scripts": {
+        "start": "node dist/index.js",
+        "start:dev": "tsx src/index.tsx",
+        "build": "tsc",
+        "dev": "tsx src/index.tsx",
+        "typecheck": "tsc --noEmit",
+        "lint": "eslint src --ext .ts,.tsx",
+        "lint:fix": "eslint src --ext .ts,.tsx --fix"
+    },
+    "dependencies": {
+        "chalk": "^5.4.1"
+    },
+    "devDependencies": {
+        "@eslint/js": "^9.27.0",
+        "@types/inquirer": "^9.0.8",
+        "@types/node": "^22.15.21",
+        "@types/react": "^18.3.12",
+        "@typescript-eslint/eslint-plugin": "^8.32.1",
+        "@typescript-eslint/parser": "^8.32.1",
+        "eslint": "^9.27.0",
+        "eslint-plugin-react": "^7.37.5",
+        "eslint-plugin-react-hooks": "^5.2.0",
+        "npm-check-updates": "^18.0.1",
+        "ts-node": "^10.9.2",
+        "tsx": "^4.19.4",
+        "typescript": "^5.8.3"
+    },
+    "engines": {
+        "node": ">=18"
+    }
 }

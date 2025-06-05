@@ -69,7 +69,7 @@ export const MessageList = ({ messages, shapeName }: MessageListProps) => {
           }
           
           // Section headers (with emojis)
-          if (line.match(/^[📝💬📊🎭🖼️⚙️🔧]/)) {
+          if (line.match(/^(?:📝|💬|📊|🎭|🖼️|⚙️|🔧)/u)) {
             return <Text key={lineIndex} color="white">{line}</Text>;
           }
           
@@ -144,7 +144,7 @@ export const MessageList = ({ messages, shapeName }: MessageListProps) => {
           }
           
           // Description value lines (indented text after Description field)
-          if (line.match(/^    /) && !line.includes('• ') && lineIndex > 0) {
+          if (line.match(/^ {4}/) && !line.includes('• ') && lineIndex > 0) {
             const prevLine = lines[lineIndex - 1];
             if (prevLine && prevLine.includes('• Description:')) {
               return <Text key={lineIndex} color="white">{line}</Text>;
@@ -166,7 +166,7 @@ export const MessageList = ({ messages, shapeName }: MessageListProps) => {
           }
           
           // Tag/array items (indented with bullets)
-          if (line.match(/^    • /)) {
+          if (line.match(/^ {4}• /)) {
             return <Text key={lineIndex} color="gray">{line}</Text>;
           }
           

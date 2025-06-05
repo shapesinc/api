@@ -16,7 +16,7 @@ interface ChatInputProps {
   authStatus: string;
   endpoint: string;
   terminalWidth: number;
-  inputMode?: 'normal' | 'awaiting_auth';
+  inputMode?: 'normal' | 'awaiting_auth' | 'awaiting_key';
   onEscape?: () => void;
   userId?: string;
   channelId?: string;
@@ -29,8 +29,16 @@ export const ChatInput = ({ onSend, images, enabledToolsCount, shapeName, authSt
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useInput((input, key) => {
-    if (key.escape && inputMode === 'awaiting_auth' && onEscape) {
+    if (key.escape && (inputMode === 'awaiting_auth' || inputMode === 'awaiting_key') && onEscape) {
       onEscape();
+    }
+    
+    // Handle image removal with Ctrl+number keys
+    if (key.ctrl && input >= '1' && input <= '9' && onRemoveImage) {
+      const imageIndex = parseInt(input) - 1;
+      if (imageIndex >= 0 && imageIndex < images.length) {
+        onRemoveImage(imageIndex);
+      }
     }
   });
 
@@ -80,12 +88,7 @@ export const ChatInput = ({ onSend, images, enabledToolsCount, shapeName, authSt
               <Text color="cyan">{image.filename}</Text>
               <Text color="gray"> ({Math.round(image.size / 1024)}KB) </Text>
               {onRemoveImage && (
-                <Box 
-                  onPress={() => onRemoveImage(index)}
-                  cursor="pointer"
-                >
-                  <Text color="red">×</Text>
-                </Box>
+                <Text color="gray">[Ctrl+{index + 1}]</Text>
               )}
             </Box>
           ))}
@@ -100,7 +103,11 @@ export const ChatInput = ({ onSend, images, enabledToolsCount, shapeName, authSt
             value={input}
             onChange={setInput}
             onSubmit={handleSubmit}
-            placeholder={inputMode === 'awaiting_auth' ? 'Enter authorization code (ESC to cancel)...' : 'Type your message or use /help for commands...'}
+            placeholder={
+              inputMode === 'awaiting_auth' ? 'Enter authorization code (ESC to cancel)...' :
+              inputMode === 'awaiting_key' ? 'Enter API key (ESC to cancel)...' :
+              'Type your message or use /help for commands...'
+            }
           />
         </Box>
       </Box>
