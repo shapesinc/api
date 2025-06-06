@@ -1,11 +1,15 @@
-import net from 'node:net';
-import { URL } from 'node:url';
+import net from "node:net";
+import { URL } from "node:url";
 
 /**
  * Check if a TCP port is accepting connections.
  */
-function isTcpPortOpen(host: string, port: number, timeoutMs: number): Promise<boolean> {
-    return new Promise(resolve => {
+function isTcpPortOpen(
+    host: string,
+    port: number,
+    timeoutMs: number
+): Promise<boolean> {
+    return new Promise((resolve) => {
         const sock = new net.Socket();
         let settled = false;
         const onDone = (up: boolean) => {
@@ -16,9 +20,9 @@ function isTcpPortOpen(host: string, port: number, timeoutMs: number): Promise<b
             }
         };
         sock.setTimeout(timeoutMs);
-        sock.once('connect', () => onDone(true));
-        sock.once('timeout', () => onDone(false));
-        sock.once('error', () => onDone(false));
+        sock.once("connect", () => onDone(true));
+        sock.once("timeout", () => onDone(false));
+        sock.once("error", () => onDone(false));
         sock.connect(port, host);
     });
 }
@@ -39,7 +43,8 @@ async function getBaseUrl({
             const debugHost = new URL(debugUrl);
             const isDebugUp = await isTcpPortOpen(
                 debugHost.hostname,
-                Number(debugHost.port) || (debugHost.protocol === 'https:' ? 443 : 80),
+                Number(debugHost.port) ||
+                    (debugHost.protocol === "https:" ? 443 : 80),
                 200
             );
             if (isDebugUp) return debugUrl;
@@ -49,15 +54,16 @@ async function getBaseUrl({
             const devHost = new URL(devUrl);
             const isDevUp = await isTcpPortOpen(
                 devHost.hostname,
-                Number(devHost.port) || (devHost.protocol === 'https:' ? 443 : 80),
+                Number(devHost.port) ||
+                    (devHost.protocol === "https:" ? 443 : 80),
                 200
             );
             if (isDevUp) return devUrl;
         }
 
-        return prodUrl || '';
+        return prodUrl || "";
     } catch (_err) {
-        return prodUrl || '';
+        return prodUrl || "";
     }
 }
 
@@ -67,9 +73,9 @@ async function getBaseUrl({
  */
 export async function getApiServerBaseUrl(): Promise<string> {
     return await getBaseUrl({
-        prodUrl: 'https://api.shapes.inc/v1',
-        devUrl: 'http://localhost:8080/v1',
-        debugUrl: 'http://localhost:8080/v1',
+        prodUrl: "https://api.shapes.inc/v1",
+        devUrl: "http://localhost:8080/v1",
+        debugUrl: "http://localhost:8080/v1",
     });
 }
 
@@ -79,9 +85,9 @@ export async function getApiServerBaseUrl(): Promise<string> {
  */
 export async function getApiBaseUrl(): Promise<string> {
     return await getBaseUrl({
-        prodUrl: 'https://api.shapes.inc/v1',
-        devUrl: 'http://localhost:8080/v1',
-        debugUrl: 'http://localhost:8090/v1',
+        prodUrl: "https://api.shapes.inc/v1",
+        devUrl: "http://localhost:8080/v1",
+        debugUrl: "http://localhost:8090/v1",
     });
 }
 
@@ -91,9 +97,9 @@ export async function getApiBaseUrl(): Promise<string> {
  */
 export async function getAuthBaseUrl(): Promise<string> {
     return await getBaseUrl({
-        prodUrl: 'https://api.shapes.inc/auth',
-        devUrl: 'http://localhost:8080/auth',
-        debugUrl: 'http://localhost:8090/auth',
+        prodUrl: "https://api.shapes.inc/auth",
+        devUrl: "http://localhost:8080/auth",
+        debugUrl: "http://localhost:8090/auth",
     });
 }
 
@@ -103,8 +109,8 @@ export async function getAuthBaseUrl(): Promise<string> {
  */
 export async function getSiteBaseUrl(): Promise<string> {
     return await getBaseUrl({
-        prodUrl: 'https://shapes.inc',
-        devUrl: 'http://localhost:3000',
-        debugUrl: 'http://localhost:3000',
+        prodUrl: "https://shapes.inc",
+        devUrl: "http://localhost:3000",
+        debugUrl: "http://localhost:3000",
     });
 }
