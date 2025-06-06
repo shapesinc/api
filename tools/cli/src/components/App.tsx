@@ -1198,9 +1198,9 @@ export const App = () => {
         try {
           // Parse page number from args (default to 1)
           const pageArg = args[0];
-          const pageNumber = pageArg ? parseInt(pageArg, 10) : 1;
-          
-          if (pageArg && (isNaN(pageNumber) || pageNumber < 1)) {
+          const pageNumber = pageArg ? Number.parseInt(pageArg, 10) : 1;
+
+          if (pageArg && (Number.isNaN(pageNumber) || pageNumber < 1)) {
             throw new Error('Page number must be a positive integer');
           }
 
@@ -1274,12 +1274,12 @@ export const App = () => {
             throw new Error(`Failed to fetch memories: ${memoriesResponse.status} ${memoriesResponse.statusText}`);
           }
 
-          const memoriesData = await memoriesResponse.json();
+          const memoriesData = await memoriesResponse.json() as Record<string, unknown>;
 
           // Format the memories data
           const { items, total, page, total_pages, has_next, has_previous } = memoriesData;
 
-          if (!items || items.length === 0) {
+          if (!items || (items as Record<string, unknown>[]).length === 0) {
             const noMemoriesMessage: Message = {
               type: 'system',
               content: 'No memories found for this shape.'
@@ -1300,7 +1300,7 @@ export const App = () => {
 
           let content = `🧠 === MEMORIES (${total} total, page ${page}/${total_pages}) ===\n\n`;
 
-          items.forEach((item: Record<string, unknown>, index: number) => {
+          (items as Record<string, unknown>[]).forEach((item: Record<string, unknown>, index: number) => {
             const { id, summary_type, deleted, result, group, created_at } = item;
             const isGroup = group || false;
             const createdAt = created_at ? formatDate(created_at as number) : 'Unknown';
@@ -1308,7 +1308,7 @@ export const App = () => {
             const typeText = deleted ? `${summary_type} (DELETED)` : summary_type;
 
             // Calculate global memory number: (page-1) * limit + index + 1
-            const globalMemoryNumber = (page - 1) * 10 + index + 1;
+            const globalMemoryNumber = (page as number - 1) * 10 + index + 1;
 
             // Add empty line before each memory except the first one
             if (index > 0) {
