@@ -3,16 +3,12 @@ import { URL } from 'node:url'
 
 /**
  * Check if a TCP port is accepting connections.
- * @param {string} host
- * @param {number} port
- * @param {number} timeoutMs
- * @returns {Promise<boolean>}
  */
-function isTcpPortOpen(host, port, timeoutMs) {
+function isTcpPortOpen(host: string, port: number, timeoutMs: number): Promise<boolean> {
     return new Promise(resolve => {
         const sock = new net.Socket()
         let settled = false
-        const onDone = up => {
+        const onDone = (up: boolean) => {
             if (!settled) {
                 settled = true
                 sock.destroy()
@@ -27,26 +23,24 @@ function isTcpPortOpen(host, port, timeoutMs) {
     })
 }
 
-/**
- * @param {object} [opts]
- * @param {string} [opts.prodUrl]
- * @param {string} [opts.devUrl]
- * @param {string} [opts.debugUrl]
- * @param {number} [opts.timeoutMs]
- * @returns {Promise<string>}
- */
+interface BaseUrlOptions {
+    prodUrl: string;
+    devUrl: string;
+    debugUrl: string;
+}
+
 async function getBaseUrl({
     prodUrl,
     devUrl,
     debugUrl,
-} = {}) {
+}: BaseUrlOptions): Promise<string> {
     try {
-        const debugHost = new URL(debugUrl)
-        const isDebugUp = await isTcpPortOpen(debugHost.hostname, Number(debugHost.port) || (debugHost.protocol === 'https:' ? 443 : 80), 200)
-        const devHost = new URL(devUrl)
-        const isDevUp = await isTcpPortOpen(devHost.hostname, Number(devHost.port) || (devHost.protocol === 'https:' ? 443 : 80), 200)
+        const debugHost = debugUrl ? new URL(debugUrl) : undefined;
+        const isDebugUp = debugHost ? await isTcpPortOpen(debugHost.hostname, Number(debugHost.port) || (debugHost.protocol === 'https:' ? 443 : 80), 200) : false;
+        const devHost = devUrl ? new URL(devUrl) : undefined;
+        const isDevUp = devHost ? await isTcpPortOpen(devHost.hostname, Number(devHost.port) || (devHost.protocol === 'https:' ? 443 : 80), 200) : false;
         return isDebugUp ? debugUrl : isDevUp ? devUrl : prodUrl
-    } catch (err) {
+    } catch {
         return prodUrl;
     }
 }
@@ -55,7 +49,7 @@ async function getBaseUrl({
 Autodiscover the API server base URL
 Will discover both local server if available
 */
-export async function getApiServerBaseUrl() {
+export async function getApiServerBaseUrl(): Promise<string> {
     return await getBaseUrl({
         prodUrl: 'https://api.shapes.inc/v1',
         devUrl: 'http://localhost:8080/v1',
@@ -67,7 +61,7 @@ export async function getApiServerBaseUrl() {
 Autodiscover the API base URL
 Will discover both local server and a debug proxy if available
 */
-export async function getApiBaseUrl() {
+export async function getApiBaseUrl(): Promise<string> {
     return await getBaseUrl({
         prodUrl: 'https://api.shapes.inc/v1',
         devUrl: 'http://localhost:8080/v1',
@@ -79,7 +73,7 @@ export async function getApiBaseUrl() {
 Autodiscover the Auth base URL
 Will discover both local server and a debug proxy if available
 */
-export async function getAuthBaseUrl() {
+export async function getAuthBaseUrl(): Promise<string> {
     return await getBaseUrl({
         prodUrl: 'https://api.shapes.inc/auth',
         devUrl: 'http://localhost:8080/auth',
@@ -91,7 +85,7 @@ export async function getAuthBaseUrl() {
 Autodiscover the Site base URL
 Will discover both local server and a debug proxy if available
 */
-export async function getSiteBaseUrl() {
+export async function getSiteBaseUrl(): Promise<string> {
     return await getBaseUrl({
         prodUrl: 'https://shapes.inc',
         devUrl: 'http://localhost:3000',

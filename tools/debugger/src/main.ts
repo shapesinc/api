@@ -9,10 +9,8 @@ import chalk from 'chalk';
 
 /**
  * Mask a token showing only the last 4 characters.
- * @param {string} token
- * @returns {string}
  */
-function maskToken(token) {
+function maskToken(token: string): string {
   const t = String(token || '');
   const last = t.slice(-4);
   return `****${last}`;
@@ -34,24 +32,21 @@ const finishReasonColors = {
 
 /**
  * Pretty-print JSON with OpenAI chat syntax highlighting.
- * @param {object} obj - parsed JSON object
- * @param {object} opts
- * @param {boolean} opts.isResponse - if true, also highlight finish_reason
  */
-function prettyPrintJson(obj, { isResponse = false } = {}) {
+function prettyPrintJson(obj: Record<string, unknown>, { isResponse = false }: { isResponse?: boolean } = {}): void {
   const str = JSON.stringify(obj, null, 2);
   for (const line of str.split('\n')) {
     const m = line.match(/^(\s*)(.*)$/);
     const indent = m ? m[1] : '';
     const trimmed = m ? m[2] : line;
     // braces or brackets
-    if (/^[\{\}\[\]],?$/.test(trimmed)) {
+    if (/^[{}[\]],?$/.test(trimmed)) {
       console.log(indent + chalk.gray(trimmed));
     } else if (trimmed.startsWith('"role"')) {
       const parts = trimmed.match(/^"role":\s*"([^"]+)"(,?)$/);
       if (parts) {
         const [, role, comma] = parts;
-        const colorFn = roleColorMap[role] || chalk.white;
+        const colorFn = roleColorMap[role as keyof typeof roleColorMap] || chalk.white;
         console.log(
           indent + chalk.gray('"role": ') + colorFn(`"${role}"`) + (comma || '')
         );
@@ -89,7 +84,7 @@ function prettyPrintJson(obj, { isResponse = false } = {}) {
       const parts = trimmed.match(/^"finish_reason":\s*"([^"]+)"(,?)$/);
       if (parts) {
         const [, reason, comma] = parts;
-        const colorFn = finishReasonColors[reason] || chalk.red;
+        const colorFn = finishReasonColors[reason as keyof typeof finishReasonColors] || chalk.red;
         console.log(
           indent + chalk.gray('"finish_reason": ') + colorFn(`"${reason}"`) + (comma || '')
         );
@@ -105,14 +100,14 @@ function prettyPrintJson(obj, { isResponse = false } = {}) {
 // Configuration
 // If you change the port, you must also change it in
 // the application you want to debug
-const PORT    = process.env.PORT || 8090;
+const PORT: number = Number(process.env.PORT) || 8090;
 // Determine upstream API base URL (local server or production)
-const baseUrl = await getApiServerBaseUrl();
+const baseUrl: string = await getApiServerBaseUrl();
 
 /**
  * Pretty-print an HTTP request header and body (minimal skeleton)
  */
-function prettyPrintRequest(req, bodyBuf) {
+function prettyPrintRequest(req: http.IncomingMessage, bodyBuf: Buffer): void {
   console.log(chalk.cyan.bold.underline('\n=== Request ==='));
   console.log(chalk.bold('Method:'), req.method);
   console.log(chalk.bold('URL:'), req.url);
@@ -130,10 +125,10 @@ function prettyPrintRequest(req, bodyBuf) {
         const token = parts.join(' ');
         display = `${scheme} ${maskToken(token)}`;
       } else {
-        display = maskToken(value);
+        display = maskToken(value ?? '');
       }
     } else if (lower === 'x-user-auth') {
-      display = maskToken(value);
+      display = maskToken(value ?? '');
     }
     // highlight important headers
     const important = lower === 'authorization' || lower === 'content-type' ||
@@ -150,7 +145,7 @@ function prettyPrintRequest(req, bodyBuf) {
     try {
       const obj = JSON.parse(str);
       prettyPrintJson(obj, { isResponse: false });
-    } catch (e) {
+    } catch {
       console.log(str);
     }
   }
@@ -159,10 +154,10 @@ function prettyPrintRequest(req, bodyBuf) {
 /**
  * Pretty-print an HTTP response status and body (minimal skeleton)
  */
-function prettyPrintResponse(res, bodyBuf) {
+function prettyPrintResponse(res: http.IncomingMessage, bodyBuf: Buffer): void {
   // colored section title based on status code
   {
-    const code = res.statusCode;
+    const code = res.statusCode ?? 200;
     const titleColor = code >= 200 && code < 300 ? chalk.green
                       : code >= 300 && code < 400 ? chalk.yellow
                       : chalk.red;
@@ -184,10 +179,10 @@ function prettyPrintResponse(res, bodyBuf) {
         const token = parts.join(' ');
         display = `${scheme} ${maskToken(token)}`;
       } else {
-        display = maskToken(value);
+        display = maskToken(value ?? '');
       }
     } else if (lower === 'x-user-auth') {
-      display = maskToken(value);
+      display = maskToken(value ?? '');
     }
     // highlight important headers
     const important = lower === 'authorization' || lower === 'content-type' ||
@@ -214,7 +209,7 @@ function prettyPrintResponse(res, bodyBuf) {
           console.log(str);
         }
       } catch (err) {
-        console.log(chalk.red('Failed to decompress gzipped response:'), err.message);
+        console.log(chalk.red('Failed to decompress gzipped response:'), (err as Error).message);
         console.log(chalk.gray('Raw gzipped data length:'), bodyBuf.length);
       }
     } else {
@@ -233,7 +228,7 @@ function prettyPrintResponse(res, bodyBuf) {
 // Basic HTTP proxy server
 const server = http.createServer((clientReq, clientRes) => {
   // Buffer incoming request body
-  const reqChunks = [];
+  const reqChunks: Buffer[] = [];
   clientReq.on('data', chunk => reqChunks.push(chunk));
   clientReq.on('end', () => {
     const requestBody = Buffer.concat(reqChunks);
@@ -241,7 +236,7 @@ const server = http.createServer((clientReq, clientRes) => {
     prettyPrintRequest(clientReq, requestBody);
 
     // Build upstream URL
-    const upstreamUrl = new URL(clientReq.url, baseUrl);
+    const upstreamUrl = new URL(clientReq.url ?? '', baseUrl);
     // Prepare headers for upstream (override Host header)
     const headers = {
       ...clientReq.headers,
@@ -265,7 +260,7 @@ const server = http.createServer((clientReq, clientRes) => {
     // Forward to upstream
     const proxyReq = (upstreamUrl.protocol === 'https:' ? https : http)
       .request(options, proxyRes => {
-        const resChunks = [];
+        const resChunks: Buffer[] = [];
         proxyRes.on('data', chunk => resChunks.push(chunk));
         proxyRes.on('end', () => {
           const responseBody = Buffer.concat(resChunks);
@@ -273,7 +268,7 @@ const server = http.createServer((clientReq, clientRes) => {
           prettyPrintResponse(proxyRes, responseBody);
 
           // Relay status, headers, and body back to client
-          clientRes.writeHead(proxyRes.statusCode, proxyRes.headers);
+          clientRes.writeHead(proxyRes.statusCode ?? 200, proxyRes.headers);
           clientRes.end(responseBody);
         });
     });

@@ -1,4 +1,4 @@
-import net from 'net';
+import net from 'node:net';
 import { URL } from 'node:url';
 
 /**
@@ -38,23 +38,23 @@ async function getBaseUrl({
         if (debugUrl) {
             const debugHost = new URL(debugUrl);
             const isDebugUp = await isTcpPortOpen(
-                debugHost.hostname, 
-                Number(debugHost.port) || (debugHost.protocol === 'https:' ? 443 : 80), 
+                debugHost.hostname,
+                Number(debugHost.port) || (debugHost.protocol === 'https:' ? 443 : 80),
                 200
             );
             if (isDebugUp) return debugUrl;
         }
-        
+
         if (devUrl) {
             const devHost = new URL(devUrl);
             const isDevUp = await isTcpPortOpen(
-                devHost.hostname, 
-                Number(devHost.port) || (devHost.protocol === 'https:' ? 443 : 80), 
+                devHost.hostname,
+                Number(devHost.port) || (devHost.protocol === 'https:' ? 443 : 80),
                 200
             );
             if (isDevUp) return devUrl;
         }
-        
+
         return prodUrl || '';
     } catch (_err) {
         return prodUrl || '';

@@ -1,15 +1,8 @@
-import React, { useEffect } from 'react';
+import { useEffect, useCallback } from 'react';
 import { Box, Text } from 'ink';
 import { renderCodeBlock } from '../utils/rendering.js';
 import open from 'open';
-
-interface Message {
-  type: 'user' | 'assistant' | 'system' | 'tool' | 'error';
-  content: string;
-  images?: string[];
-  tool_calls?: any[];
-  tool_call_id?: string;
-}
+import type { Message } from './types.js';
 
 interface MessageListProps {
   messages: Message[];
@@ -18,18 +11,18 @@ interface MessageListProps {
 
 export const MessageList = ({ messages, shapeName }: MessageListProps) => {
   const getAssistantLabel = () => {
-    if (shapeName && shapeName.startsWith('shapesinc/')) {
+    if (shapeName?.startsWith('shapesinc/')) {
       const parts = shapeName.split('/');
       return `${parts[1]}:`;
     }
     return shapeName ? `${shapeName}:` : 'Assistant:';
   };
 
-  const detectAndOpenImages = async (content: string) => {
+  const detectAndOpenImages = useCallback(async (content: string) => {
     // Match image URLs (common image extensions)
     const imageUrlRegex = /(https?:\/\/[^\s]+\.(jpg|jpeg|png|gif|webp|svg|bmp))/gi;
     const matches = content.match(imageUrlRegex);
-    
+
     if (matches) {
       for (const imageUrl of matches) {
         try {
@@ -39,7 +32,7 @@ export const MessageList = ({ messages, shapeName }: MessageListProps) => {
         }
       }
     }
-  };
+  }, []);
 
   // Auto-open images in new assistant messages
   useEffect(() => {
@@ -47,54 +40,55 @@ export const MessageList = ({ messages, shapeName }: MessageListProps) => {
     if (lastMessage && lastMessage.type === 'assistant') {
       detectAndOpenImages(lastMessage.content);
     }
-  }, [messages]);
+  }, [messages, detectAndOpenImages]);
 
   const renderShapeInfo = (content: string) => {
     const lines = content.split('\n');
     return (
       <Box flexDirection="column">
         {lines.map((line, lineIndex) => {
+          const key = `${lineIndex}`;
           // Header line
-          if (line.includes('=== SHAPE PROFILE:')) {
-            const match = line.match(/🔷 === SHAPE PROFILE: (.+) ===/);
+          if (line.includes('=== SHAPE:')) {
+            const match = line.match(/🔷 === SHAPE: (.+) ===/);
             if (match) {
               return (
-                <Text key={lineIndex}>
-                  <Text color="white">🔷 === SHAPE PROFILE: </Text>
+                <Text key={key}>
+                  <Text color="white">🔷 === SHAPE: </Text>
                   <Text color="cyan">{match[1]}</Text>
                   <Text color="white"> ===</Text>
                 </Text>
               );
             }
           }
-          
+
           // Section headers (with emojis)
           if (line.match(/^(?:📝|💬|📊|🎭|🖼️|⚙️|🔧)/u)) {
-            return <Text key={lineIndex} color="white">{line}</Text>;
+            return <Text key={key} color="white">{line}</Text>;
           }
-          
+
           // Field lines with special handling
           if (line.includes('  • ')) {
             const match = line.match(/^(\s*• )([^:]+): ?(.*)$/);
             if (match) {
               const [, indent, fieldName, value] = match;
-              
+
               // Special handling for specific fields
               if (line.includes('• Name:') || line.includes('• Username:')) {
                 return (
-                  <Text key={lineIndex}>
+                  <Text key={key}>
                     <Text color="gray">{indent}{fieldName}: </Text>
                     <Text color="cyan">{value}</Text>
                   </Text>
                 );
               }
-              
+
               // Status field with colored status
               if (line.includes('• Status:')) {
                 const isEnabled = value.includes('Enabled');
                 const statusText = value.replace('✅ ', '').replace('❌ ', '');
                 return (
-                  <Text key={lineIndex}>
+                  <Text key={key}>
                     <Text color="gray">{indent}{fieldName}: </Text>
                     <Text>{isEnabled ? '✅ ' : '❌ '}</Text>
                     <Text color={isEnabled ? 'green' : 'yellow'}>{statusText}</Text>
@@ -107,76 +101,76 @@ export const MessageList = ({ messages, shapeName }: MessageListProps) => {
                 const isAdmin = value.includes('Yes');
                 const adminText = value.replace('⚠️ ', '');
                 return (
-                  <Text key={lineIndex}>
+                  <Text key={key}>
                     <Text color="gray">{indent}{fieldName}: </Text>
                     {isAdmin && <Text>⚠️ </Text>}
                     <Text color={isAdmin ? 'yellow' : 'gray'}>{adminText}</Text>
                   </Text>
                 );
               }
-              
+
               // Description field (value starts on new line, so only show field name)
               if (line.includes('• Description:') && value.trim() === '') {
                 return (
-                  <Text key={lineIndex}>
+                  <Text key={key}>
                     <Text color="gray">{indent}{fieldName}:</Text>
                   </Text>
                 );
               }
-              
+
               // Tags field (make field name gray instead of white)
               if (line.includes('• Tags:') && value.trim() === '') {
                 return (
-                  <Text key={lineIndex}>
+                  <Text key={key}>
                     <Text color="gray">{indent}{fieldName}:</Text>
                   </Text>
                 );
               }
-              
+
               // Regular field
               return (
-                <Text key={lineIndex}>
+                <Text key={key}>
                   <Text color="gray">{indent}{fieldName}: </Text>
                   <Text color="gray">{value}</Text>
                 </Text>
               );
             }
           }
-          
+
           // Description value lines (indented text after Description field)
           if (line.match(/^ {4}/) && !line.includes('• ') && lineIndex > 0) {
             const prevLine = lines[lineIndex - 1];
-            if (prevLine && prevLine.includes('• Description:')) {
-              return <Text key={lineIndex} color="white">{line}</Text>;
+            if (prevLine?.includes('• Description:')) {
+              return <Text key={key} color="white">{line}</Text>;
             }
           }
-          
+
           // Single-line Description field with value
           if (line.includes('• Description:') && !line.endsWith('Description:')) {
             const match = line.match(/^(\s*• Description: )(.+)$/);
             if (match) {
               const [, fieldPart, descValue] = match;
               return (
-                <Text key={lineIndex}>
+                <Text key={key}>
                   <Text color="gray">{fieldPart}</Text>
                   <Text color="white">{descValue}</Text>
                 </Text>
               );
             }
           }
-          
+
           // Tag/array items (indented with bullets)
           if (line.match(/^ {4}• /)) {
-            return <Text key={lineIndex} color="gray">{line}</Text>;
+            return <Text key={key} color="gray">{line}</Text>;
           }
-          
+
           // Empty lines
           if (line.trim() === '') {
-            return <Text key={lineIndex}> </Text>;
+            return <Text key={key}> </Text>;
           }
-          
+
           // Default
-          return <Text key={lineIndex} color="white">{line}</Text>;
+          return <Text key={key} color="white">{line}</Text>;
         })}
       </Box>
     );
@@ -209,7 +203,7 @@ export const MessageList = ({ messages, shapeName }: MessageListProps) => {
 
     const formattedContent = message.content.replace(
       /```(\w+)?\n([\s\S]*?)```/g,
-      (match, language, code) => renderCodeBlock(code, language)
+      (_match, language, code) => renderCodeBlock(code, language)
     );
 
     return (
@@ -227,10 +221,10 @@ export const MessageList = ({ messages, shapeName }: MessageListProps) => {
             <Text>{formattedContent}</Text>
           )}
         </Box>
-        {message.tool_calls && message.tool_calls.length > 0 && (
+        {message.tool_calls && message.tool_calls?.length > 0 && (
           <Box marginLeft={2} marginTop={1}>
             {message.tool_calls.map((toolCall, tcIndex) => (
-              <Box key={tcIndex} flexDirection="column" marginBottom={1}>
+              <Box key={`${toolCall.function.name}-${tcIndex}`} flexDirection="column" marginBottom={1}>
                 <Text color="yellow">🔧 {toolCall.function.name}({toolCall.function.arguments})</Text>
               </Box>
             ))}

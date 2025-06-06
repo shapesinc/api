@@ -1,5 +1,5 @@
-import fs from 'fs/promises';
-import path from 'path';
+import fs from 'node:fs/promises';
+import path from 'node:path';
 
 interface ImageUploadResult {
   dataUrl: string;
@@ -38,7 +38,7 @@ export async function uploadImage(filename?: string): Promise<ImageUploadResult>
         filePath = path.resolve(process.cwd(), filename);
         displayFilename = filename;
       }
-      
+
       // Check if file exists
       try {
         await fs.access(filePath);
@@ -54,22 +54,22 @@ export async function uploadImage(filename?: string): Promise<ImageUploadResult>
     } else {
       // Auto-select first image file from current directory
       const imageFiles = await listImageFiles();
-      
+
       if (imageFiles.length === 0) {
         throw new Error('No image files found in current directory');
       }
-      
+
       displayFilename = imageFiles[0];
       filePath = path.join(process.cwd(), displayFilename);
     }
 
     const fileContent = await fs.readFile(filePath);
     const stats = await fs.stat(filePath);
-    
+
     // Convert to base64 data URL
     const base64 = fileContent.toString('base64');
     const contentType = getContentType(filePath);
-    
+
     return {
       dataUrl: `data:${contentType};base64,${base64}`,
       filename: displayFilename,

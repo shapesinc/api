@@ -1,12 +1,7 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import TextInput from 'ink-text-input';
-
-interface QueuedImage {
-  dataUrl: string;
-  filename: string;
-  size: number;
-}
+import type { QueuedImage } from './types.js';
 
 interface ChatInputProps {
   onSend: (content: string, images?: string[]) => void;
@@ -32,10 +27,10 @@ export const ChatInput = ({ onSend, images, enabledToolsCount, shapeName, authSt
     if (key.escape && (inputMode === 'awaiting_auth' || inputMode === 'awaiting_key') && onEscape) {
       onEscape();
     }
-    
+
     // Handle image removal with Ctrl+number keys
     if (key.ctrl && input >= '1' && input <= '9' && onRemoveImage) {
-      const imageIndex = parseInt(input) - 1;
+      const imageIndex = Number.parseInt(input) - 1;
       if (imageIndex >= 0 && imageIndex < images.length) {
         onRemoveImage(imageIndex);
       }
@@ -84,7 +79,7 @@ export const ChatInput = ({ onSend, images, enabledToolsCount, shapeName, authSt
         <Box marginTop={1} paddingX={2}>
           <Text color="yellow">Images ({images.length}): </Text>
           {images.map((image, index) => (
-            <Box key={index} marginRight={1}>
+            <Box key={`${image.filename}-${index}`} marginRight={1}>
               <Text color="cyan">{image.filename}</Text>
               <Text color="gray"> ({Math.round(image.size / 1024)}KB) </Text>
               {onRemoveImage && (
@@ -94,7 +89,7 @@ export const ChatInput = ({ onSend, images, enabledToolsCount, shapeName, authSt
           ))}
         </Box>
       )}
-      
+
       {/* Input box with border */}
       <Box borderStyle="round" borderColor="blue" width={terminalWidth}>
         <Box width="100%" paddingX={1}>
@@ -111,7 +106,7 @@ export const ChatInput = ({ onSend, images, enabledToolsCount, shapeName, authSt
           />
         </Box>
       </Box>
-      
+
       {/* Status line below input - aligned as if inside the border */}
       <Box width={terminalWidth} paddingX={2} justifyContent="space-between">
         <Box>

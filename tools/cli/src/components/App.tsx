@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Box, Text, useStdout } from 'ink';
-import OpenAI from 'openai';
+import OpenAI, { type ClientOptions, type APIError } from 'openai';
 import { getToken, getAuthUrl, clearToken, authenticate, saveToken } from '../utils/auth.js';
 import { loadTools } from '../utils/tools.js';
 import { loadPlugins } from '../utils/plugins.js';
@@ -9,25 +9,11 @@ import { ChatInput } from './ChatInput.js';
 import { MessageList } from './MessageList.js';
 import { renderError } from '../utils/rendering.js';
 import { config, initConfig } from '../config.js';
+import type { Message, QueuedImage } from './types.js';
 import open from 'open';
-import fs from 'fs/promises';
-import path from 'path';
-import os from 'os';
-
-interface Message {
-  type: 'user' | 'assistant' | 'system' | 'tool' | 'error';
-  content: string;
-  images?: string[];
-  tool_calls?: any[];
-  tool_call_id?: string;
-}
-
-
-interface QueuedImage {
-  dataUrl: string;
-  filename: string;
-  size: number;
-}
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import os from 'node:os';
 
 interface Tool {
   name: string;
@@ -243,31 +229,33 @@ export const App = () => {
 
         // Only create client if we have an API key or token
         if (currentApiKey || token) {
-          const clientConfig: any = {
-            apiKey: currentApiKey,
-            baseURL: discoveredConfig.apiUrl,
-            defaultHeaders: {},
-          };
+          const defaultHeaders: Record<string, string> = {};
 
           // Add app ID header if set
           if (effectiveAppId) {
-            clientConfig.defaultHeaders['X-App-ID'] = effectiveAppId;
+            defaultHeaders['X-App-ID'] = effectiveAppId;
           }
 
           // Add user auth header if available
           if (token) {
-            clientConfig.defaultHeaders['X-User-Auth'] = token;
+            defaultHeaders['X-User-Auth'] = token;
           }
 
           // Add user ID header if set
           if (savedUserId) {
-            clientConfig.defaultHeaders['X-User-ID'] = savedUserId;
+            defaultHeaders['X-User-ID'] = savedUserId;
           }
 
           // Add channel ID header if set
           if (savedChannelId) {
-            clientConfig.defaultHeaders['X-Channel-ID'] = savedChannelId;
+            defaultHeaders['X-Channel-ID'] = savedChannelId;
           }
+
+          const clientConfig: ClientOptions = {
+            apiKey: currentApiKey,
+            baseURL: discoveredConfig.apiUrl,
+            defaultHeaders,
+          };
 
           const shapesClient = new OpenAI(clientConfig);
           setClient(shapesClient);
@@ -304,7 +292,7 @@ export const App = () => {
               properties: {},
               required: []
             },
-            enabled: savedToolsState['ping'] ?? false
+            enabled: savedToolsState.ping ?? false
           },
           {
             name: 'echo',
@@ -316,7 +304,7 @@ export const App = () => {
               },
               required: ['message']
             },
-            enabled: savedToolsState['echo'] ?? false
+            enabled: savedToolsState.echo ?? false
           }
         ];
         setAvailableTools(testTools);
@@ -326,7 +314,7 @@ export const App = () => {
     };
 
     initialize();
-  }, [userId, channelId, apiKey]);
+  }, [apiKey]);
 
   // Fetch app name when appId changes
   useEffect(() => {
@@ -338,12 +326,12 @@ export const App = () => {
 
       try {
         const token = await getToken();
-        const headers: any = {
+        const headers: Record<string, string> = {
           'X-App-ID': appId
         };
 
         if (config.apiKey) {
-          headers['Authorization'] = `Bearer ${config.apiKey}`;
+          headers.Authorization = `Bearer ${config.apiKey}`;
         }
 
         if (token) {
@@ -356,8 +344,8 @@ export const App = () => {
         });
 
         if (response.ok) {
-          const data = await response.json();
-          setAppName(data.name);
+          const data = await response.json() as Record<string, unknown>;
+          setAppName(data.name as string);
         } else {
           // If we can't fetch the name, show the app ID instead
           setAppName(appId);
@@ -410,41 +398,43 @@ export const App = () => {
 
     try {
       // Prepare message content - text only or multimodal with images
-      let messageContent: any;
+      let messageContent: OpenAI.ChatCompletionContentPart[];
       if (currentImages.length > 0) {
         messageContent = [
-          { type: "text", text: content },
+          { type: 'text' as const, text: content },
           ...currentImages.map(img => ({
-            type: "image_url",
+            type: 'image_url' as const,
             image_url: { url: img }
           }))
         ];
       } else {
-        messageContent = content;
+        messageContent = [{ type: 'text' as const, text: content }];
       }
 
       // Prepare the request with tools and plugins
       const request = {
         model: config.model,
         messages: [
-          ...messages.filter(msg => msg.type !== 'system' && msg.type !== 'tool' && msg.type !== 'error').map(msg => {
+          ...messages.filter(
+            msg => msg.type !== 'system' && msg.type !== 'tool' && msg.type !== 'error'
+          ).map(msg => {
             if (msg.type === 'user' && msg.images && msg.images.length > 0) {
               return {
                 role: 'user' as const,
                 content: [
-                  { type: "text", text: msg.content },
+                  { type: 'text' as const, text: msg.content },
                   ...msg.images.map(img => ({
-                    type: "image_url",
+                    type: 'image_url' as const,
                     image_url: { url: img }
                   }))
                 ]
               };
-            } else {
-              return {
-                role: msg.type === 'user' ? 'user' as const : 'assistant' as const,
-                content: msg.content,
-              };
             }
+
+            return {
+              role: msg.type === 'user' ? 'user' as const : 'assistant' as const,
+              content: msg.content,
+            };
           }),
           { role: 'user' as const, content: messageContent },
         ],
@@ -493,19 +483,19 @@ export const App = () => {
               return {
                 role: 'user' as const,
                 content: [
-                  { type: "text", text: msg.content },
+                  { type: "text" as const, text: msg.content },
                   ...msg.images.map(img => ({
-                    type: "image_url",
+                    type: "image_url" as const,
                     image_url: { url: img }
                   }))
                 ]
               };
-            } else {
-              return {
-                role: msg.type === 'user' ? 'user' as const : 'assistant' as const,
-                content: msg.content,
-              };
             }
+
+            return {
+              role: msg.type === 'user' ? 'user' as const : 'assistant' as const,
+              content: msg.content,
+            };
           }),
           { role: 'user' as const, content: messageContent },
           {
@@ -523,7 +513,7 @@ export const App = () => {
           ...toolResults.map(tr => ({
             role: 'tool' as const,
             content: tr.content,
-            tool_call_id: tr.tool_call_id!
+            tool_call_id: tr.tool_call_id ?? ''
           }))
         ];
 
@@ -584,7 +574,7 @@ export const App = () => {
             ...secondToolResults.map(tr => ({
               role: 'tool' as const,
               content: tr.content,
-              tool_call_id: tr.tool_call_id!
+              tool_call_id: tr.tool_call_id ?? ''
             }))
           ];
 
@@ -625,7 +615,7 @@ export const App = () => {
         setMessages(prev => [...prev, assistantMessage]);
       }
     } catch (err) {
-      const error = err as any;
+      const error = err as APIError;
       const status = error.status || error.code || 'Unknown';
       const message = error.message || 'An unexpected error occurred';
 
@@ -637,7 +627,7 @@ export const App = () => {
     }
   };
 
-  const handleToolCall = async (toolCall: any): Promise<string> => {
+  const handleToolCall = async (toolCall: OpenAI.Chat.Completions.ChatCompletionMessageToolCall): Promise<string> => {
     try {
       const args = JSON.parse(toolCall.function.arguments);
 
@@ -777,10 +767,10 @@ export const App = () => {
           if (availableTools.length === 0) {
             content += 'No tools available.';
           } else {
-            availableTools.forEach(tool => {
+            for (const tool of availableTools) {
               const status = tool.enabled ? '✓' : '○';
               content += `  ${status} ${tool.name} - ${tool.description}\n`;
-            });
+            }
           }
 
           content += '\nUse "/tools:enable <name>" to enable a tool or "/tools:disable <name>" to disable it.';
@@ -918,7 +908,7 @@ export const App = () => {
             throw new Error(`Failed to fetch shape info: ${response.status} ${response.statusText}`);
           }
 
-          const data = await response.json();
+          const data = await response.json() as Record<string, unknown>;
 
           const {
             id, name, username: shapeUsername, search_description, search_tags_v2,
@@ -936,7 +926,7 @@ export const App = () => {
             });
           };
 
-          const formatArray = (arr: any[], label: string) => {
+          const formatArray = (arr: Record<string, unknown>[], label: string) => {
             if (!arr || arr.length === 0) return '';
             if (label === 'Screenshots') {
               return arr.map(item => `• ${item.caption}: ${item.url}`).join('\n    ');
@@ -946,44 +936,44 @@ export const App = () => {
 
           const infoContent = [
             `🔷 === SHAPE PROFILE: ${name || shapeUsername} ===`,
-            ``,
-            `📝 Basic Info:`,
+            '',
+            '📝 Basic Info:',
             `  • ID: ${id || 'N/A'}`,
             `  • Name: ${name || 'N/A'}`,
             `  • Username: ${shapeUsername}`,
             `  • Status: ${enabled ? '✅ Enabled' : '❌ Disabled'}`,
-            `  • Created: ${created_ts ? formatDate(created_ts) : 'N/A'}`,
-            ``,
-            `💬 Description & Tags:`,
+            `  • Created: ${created_ts ? formatDate(created_ts as number) : 'N/A'}`,
+            '',
+            '💬 Description & Tags:',
             `  • Description:\n    ${search_description || 'N/A'}`,
             `  • Tagline: ${tagline || 'N/A'}`,
             `  • Category: ${category || 'N/A'}`,
             `  • Universe: ${character_universe || 'N/A'}`,
             `  • Background: ${character_background || 'N/A'}`,
-            search_tags_v2 && search_tags_v2.length > 0 ? `  • Tags:\n    ${formatArray(search_tags_v2, 'Tags')}` : '',
-            ``,
-            `📊 Statistics:`,
+            (search_tags_v2 as Record<string, string>[]).length > 0 ? `  • Tags:\n    ${formatArray(search_tags_v2 as Record<string, string>[], 'Tags')}` : '',
+            '',
+            '📊 Statistics:',
             `  • Users: ${user_count?.toLocaleString() || 'N/A'}`,
             `  • Messages: ${message_count?.toLocaleString() || 'N/A'}`,
-            ``,
-            `🎭 Personality:`,
-            typical_phrases && typical_phrases.length > 0 ? `  • Typical Phrases:\n    ${formatArray(typical_phrases, 'Phrases')}` : '  • Typical Phrases: N/A',
-            example_prompts && example_prompts.length > 0 ? `  • Example Prompts:\n    ${formatArray(example_prompts, 'Prompts')}` : '  • Example Prompts: N/A',
-            ``,
-            `🖼️ Media:`,
+            '',
+            '🎭 Personality:',
+            (typical_phrases as Record<string, string>[]).length > 0 ? `  • Typical Phrases:\n    ${formatArray(typical_phrases as Record<string, string>[], 'Phrases')}` : '  • Typical Phrases: N/A',
+            (example_prompts as Record<string, string>[]).length > 0 ? `  • Example Prompts:\n    ${formatArray(example_prompts as Record<string, string>[], 'Prompts')}` : '  • Example Prompts: N/A',
+            '',
+            '🖼️ Media:',
             `  • Avatar: ${avatar_url || avatar || 'N/A'}`,
             `  • Banner: ${banner || 'N/A'}`,
-            screenshots && screenshots.length > 0 ? `  • Screenshots:\n    ${formatArray(screenshots, 'Screenshots')}` : '  • Screenshots: None',
-            ``,
-            `⚙️ Settings:`,
-            shape_settings ? [
-              `  • Initial Message: ${shape_settings.shape_initial_message || 'N/A'}`,
-              `  • Status Type: ${shape_settings.status_type || 'N/A'}`,
-              `  • Status: ${shape_settings.status || 'N/A'}`,
-              `  • Appearance: ${shape_settings.appearance || 'N/A'}`
+            (screenshots as Record<string, string>[]).length > 0 ? `  • Screenshots:\n    ${formatArray(screenshots as Record<string, string>[], 'Screenshots')}` : '  • Screenshots: None',
+            '',
+            '⚙️ Settings:',
+            (shape_settings as Record<string, string>) ? [
+              `  • Initial Message: ${(shape_settings as Record<string, string>).shape_initial_message || 'N/A'}`,
+              `  • Status Type: ${(shape_settings as Record<string, string>).status_type || 'N/A'}`,
+              `  • Status: ${(shape_settings as Record<string, string>).status || 'N/A'}`,
+              `  • Appearance: ${(shape_settings as Record<string, string>).appearance || 'N/A'}`
             ].join('\n') : '  • Settings: N/A',
-            ``,
-            `🔧 Advanced:`,
+            '',
+            '🔧 Advanced:',
             `  • User Engine Override: ${allow_user_engine_override ? 'Allowed' : 'Not Allowed'}`,
             error_message ? `  • Error Message: ${error_message}` : '',
             wack_message ? `  • Wack Message: ${wack_message}` : ''
@@ -1053,12 +1043,12 @@ export const App = () => {
           }
 
           const token = await getToken();
-          const headers: any = {
+          const headers: Record<string, string> = {
             'X-App-ID': currentAppId
           };
 
           if (config.apiKey) {
-            headers['Authorization'] = `Bearer ${config.apiKey}`;
+            headers.Authorization = `Bearer ${config.apiKey}`;
           }
 
           if (token) {
@@ -1074,13 +1064,13 @@ export const App = () => {
             throw new Error(`Failed to fetch application info: ${response.status} ${response.statusText}`);
           }
 
-          const data = await response.json();
+          const data = await response.json() as Record<string, unknown>;
           const { id, name, description, disabled, admin } = data;
 
           const appInfoContent = [
-            `🔷 === APPLICATION INFO ===`,
-            ``,
-            `📝 Basic Info:`,
+            '🔷 === APPLICATION INFO ===',
+            '',
+            '📝 Basic Info:',
             `  • ID: ${id}`,
             `  • Name: ${name}`,
             `  • Description: ${description || 'N/A'}`,
@@ -1096,7 +1086,7 @@ export const App = () => {
           setMessages(prev => [...prev, appInfoMessage]);
 
           // Update app name for status bar
-          setAppName(name);
+          setAppName(name as string);
 
         } catch (error) {
           const errorMessage: Message = {
@@ -1160,24 +1150,27 @@ export const App = () => {
 
       // Re-initialize client with new token
       const discoveredConfig = await initConfig();
-      const clientConfig: any = {
-        apiKey: discoveredConfig.apiKey,
-        baseURL: discoveredConfig.apiUrl,
-        defaultHeaders: {
-          'X-App-ID': discoveredConfig.appId,
-          'X-User-Auth': token,
-        },
+
+      const defaultHeaders: Record<string, string> = {
+        'X-App-ID': discoveredConfig.appId,
+        'X-User-Auth': token,
       };
 
       // Add user ID header if set
       if (userId) {
-        clientConfig.defaultHeaders['X-User-ID'] = userId;
+        defaultHeaders['X-User-ID'] = userId;
       }
 
       // Add channel ID header if set
       if (channelId) {
-        clientConfig.defaultHeaders['X-Channel-ID'] = channelId;
+        defaultHeaders['X-Channel-ID'] = channelId;
       }
+
+      const clientConfig: ClientOptions = {
+        apiKey: discoveredConfig.apiKey,
+        baseURL: discoveredConfig.apiUrl,
+        defaultHeaders,
+      };
 
       const shapesClient = new OpenAI(clientConfig);
       setClient(shapesClient);
@@ -1257,24 +1250,27 @@ export const App = () => {
 
       // Re-initialize with API key if available
       const discoveredConfig = await initConfig();
+
       if (discoveredConfig.apiKey) {
-        const clientConfig: any = {
-          apiKey: discoveredConfig.apiKey,
-          baseURL: discoveredConfig.apiUrl,
-          defaultHeaders: {
-            'X-App-ID': discoveredConfig.appId,
-          },
+        const defaultHeaders: Record<string, string> = {
+          'X-App-ID': discoveredConfig.appId,
         };
 
         // Add user ID header if set
         if (userId) {
-          clientConfig.defaultHeaders['X-User-ID'] = userId;
+          defaultHeaders['X-User-ID'] = userId;
         }
 
         // Add channel ID header if set
         if (channelId) {
-          clientConfig.defaultHeaders['X-Channel-ID'] = channelId;
+          defaultHeaders['X-Channel-ID'] = channelId;
         }
+
+        const clientConfig: ClientOptions = {
+          apiKey: discoveredConfig.apiKey,
+          baseURL: discoveredConfig.apiUrl,
+          defaultHeaders,
+        };
 
         const shapesClient = new OpenAI(clientConfig);
         setClient(shapesClient);

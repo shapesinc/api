@@ -20,18 +20,18 @@
         "url": "git+https://github.com/shapesinc/api.git"
     },
     "type": "module",
-    "main": "dist/index.js",
+    "main": "dist/main.js",
     "bin": {
-        "shapes-cli": "dist/index.js"
+        "shapes-cli": "dist/main.js"
     },
     "scripts": {
-        "start": "node dist/index.js",
-        "start:dev": "tsx src/index.tsx",
-        "build": "tsc",
-        "dev": "tsx src/index.tsx",
-        "typecheck": "tsc --noEmit",
-        "lint": "eslint src --ext .ts,.tsx",
-        "lint:fix": "eslint src --ext .ts,.tsx --fix"
+        "start": "node dist/main.js",
+        "start:dev": "tsx src/main.tsx",
+        "dev": "tsx src/main.tsx",
+        "lint": "eslint . --report-unused-disable-directives --no-error-on-unmatched-pattern",
+        "lint:fix": "npm run lint -- --fix",
+        "typecheck": "tsc -p tsconfig.app.json --noEmit",
+        "build": "tsc -b && tsc -p tsconfig.app.json && tsc-alias -p tsconfig.app.json"
     },
     "dependencies": {
         "axios": "^1.9.0",
@@ -53,15 +53,18 @@
         "@types/inquirer": "^9.0.8",
         "@types/node": "^22.15.30",
         "@types/react": "^19.1.6",
-        "@typescript-eslint/eslint-plugin": "^8.33.1",
-        "@typescript-eslint/parser": "^8.33.1",
         "eslint": "^9.28.0",
+        "eslint-import-resolver-typescript": "^4.4.1",
+        "eslint-plugin-import": "^2.31.0",
         "eslint-plugin-react": "^7.37.5",
         "eslint-plugin-react-hooks": "^5.2.0",
+        "globals": "^16.2.0",
+        "jiti": "^2.4.2",
         "npm-check-updates": "^18.0.1",
-        "ts-node": "^10.9.2",
+        "tsc-alias": "^1.8.16",
         "tsx": "^4.19.4",
-        "typescript": "^5.8.3"
+        "typescript": "^5.8.3",
+        "typescript-eslint": "^8.32.1"
     },
     "engines": {
         "node": ">=18"
