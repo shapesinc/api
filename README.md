@@ -20,6 +20,7 @@ To get a sense of what's possible, see what people have already built:
 - Playing Chess with Shapes https://shapeschess.vercel.app by [@kiyosh11](https://github.com/kiyosh11)
 - Shapes on Telegram https://t.me/shapesinc by [@missParadoxical](https://github.com/missParadoxical)
 - Shapes on WhatsApp at +1 (424) 452-2786 by [@anushkmittal](https://github.com/anushkmittal)
+- Technical Interview Simulator with Carmack - see `examples/education/interviewer`
 
 ## Getting Started
 You will need to generate an API Key. Get yours [here](https://shapes.inc/developer)
