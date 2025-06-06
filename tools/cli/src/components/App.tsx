@@ -29,6 +29,7 @@ const CHANNEL_ID_FILE = path.join(os.homedir(), '.shapes-cli', 'channel-id.txt')
 const APP_ID_FILE = path.join(os.homedir(), '.shapes-cli', 'app-id.txt');
 const API_KEY_FILE = path.join(os.homedir(), '.shapes-cli', 'api-key.txt');
 const SHAPE_CACHE_FILE = path.join(os.homedir(), '.shapes-cli', 'shape-cache.json');
+const SHAPE_USERNAME_FILE = path.join(os.homedir(), '.shapes-cli', 'shape-username.txt');
 
 const saveToolsState = async (tools: Tool[]): Promise<void> => {
   try {
@@ -209,6 +210,36 @@ const clearShapeCache = async (): Promise<void> => {
   }
 };
 
+const saveShapeUsername = async (username: string): Promise<void> => {
+  try {
+    const dir = path.dirname(SHAPE_USERNAME_FILE);
+    await fs.mkdir(dir, { recursive: true });
+    if (username) {
+      await fs.writeFile(SHAPE_USERNAME_FILE, username, 'utf-8');
+    } else {
+      // Remove file if username is empty
+      try {
+        await fs.unlink(SHAPE_USERNAME_FILE);
+      } catch (_error) {
+        // Ignore if file doesn't exist
+      }
+    }
+  } catch (_error) {
+    // Ignore save errors to not break the app
+    console.warn('Failed to save shape username:', _error);
+  }
+};
+
+const loadShapeUsername = async (): Promise<string> => {
+  try {
+    const data = await fs.readFile(SHAPE_USERNAME_FILE, 'utf-8');
+    return data.trim();
+  } catch (_error) {
+    // Return empty string if file doesn't exist or is invalid
+    return '';
+  }
+};
+
 export const App = () => {
   const { stdout } = useStdout();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -219,13 +250,14 @@ export const App = () => {
   const [authStatus, setAuthStatus] = useState<string>('');
   const [endpoint, setEndpoint] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
-  const [inputMode, setInputMode] = useState<'normal' | 'awaiting_auth' | 'awaiting_key'>('normal');
+  const [inputMode, setInputMode] = useState<'normal' | 'awaiting_auth' | 'awaiting_key' | 'awaiting_shape'>('normal');
   const [userId, setUserId] = useState<string>('');
   const [channelId, setChannelId] = useState<string>('');
   const [appId, setAppId] = useState<string>('');
   const [appName, setAppName] = useState<string>('');
   const [apiKey, setApiKey] = useState<string>('');
   const [cachedShapeId, setCachedShapeId] = useState<string>('');
+  const [currentShapeUsername, setCurrentShapeUsername] = useState<string>('');
 
   const terminalHeight = stdout?.rows || 24;
   const terminalWidth = stdout?.columns || 80;
@@ -239,13 +271,15 @@ export const App = () => {
         // Check for API key or user authentication
         const token = await getToken();
 
-        // Load saved user ID, channel ID, app ID, and API key first
+        // Load saved user ID, channel ID, app ID, API key, and shape username first
         const savedUserId = await loadUserId();
         const savedChannelId = await loadChannelId();
         const savedAppId = await loadAppId();
         const savedApiKey = await loadApiKey();
+        const savedShapeUsername = await loadShapeUsername();
         setUserId(savedUserId);
         setChannelId(savedChannelId);
+        setCurrentShapeUsername(savedShapeUsername);
 
         // Set API key from saved file or config
         if (savedApiKey && !apiKey) {
@@ -309,7 +343,9 @@ export const App = () => {
         }
 
         // Set shape name, auth status, and endpoint
-        setShapeName(discoveredConfig.model);
+        const effectiveUsername = savedShapeUsername || discoveredConfig.username;
+        const effectiveModel = `shapesinc/${effectiveUsername}`;
+        setShapeName(effectiveModel);
         if (token) {
           setAuthStatus(`Authenticated (${token.slice(-4)})`);
         } else if (currentApiKey) {
@@ -323,9 +359,9 @@ export const App = () => {
 
         // Load cached shape data
         const shapeCache = await loadShapeCache();
-        if (shapeCache && shapeCache.username === discoveredConfig.username) {
+        if (shapeCache && shapeCache.username === effectiveUsername) {
           setCachedShapeId(shapeCache.shapeId);
-        } else if (shapeCache && shapeCache.username !== discoveredConfig.username) {
+        } else if (shapeCache && shapeCache.username !== effectiveUsername) {
           // Clear cache if username has changed
           await clearShapeCache();
           setCachedShapeId('');
@@ -429,6 +465,12 @@ export const App = () => {
       return;
     }
 
+    // Handle awaiting shape username
+    if (inputMode === 'awaiting_shape') {
+      await handleShapeInput(content);
+      return;
+    }
+
     // Handle slash commands
     if (content.startsWith('/')) {
       await handleSlashCommand(content.slice(1));
@@ -470,7 +512,7 @@ export const App = () => {
 
       // Prepare the request with tools and plugins
       const request = {
-        model: config.model,
+        model: shapeName,
         messages: [
           ...messages.filter(
             msg => msg.type !== 'system' && msg.type !== 'tool' && msg.type !== 'error'
@@ -575,7 +617,7 @@ export const App = () => {
         ];
 
         const secondResponse = await client.chat.completions.create({
-          model: config.model,
+          model: shapeName,
           messages: updatedMessages,
           tools: availableTools.filter(t => t.enabled).map(tool => ({
             type: 'function' as const,
@@ -636,7 +678,7 @@ export const App = () => {
           ];
 
           const thirdResponse = await client.chat.completions.create({
-            model: config.model,
+            model: shapeName,
             messages: finalMessages,
             tools: availableTools.filter(t => t.enabled).map(tool => ({
               type: 'function' as const,
@@ -700,6 +742,100 @@ export const App = () => {
       }
     } catch (error) {
       return `Error executing tool ${toolCall.function.name}: ${(error as Error).message}`;
+    }
+  };
+
+  const handleShapeInput = async (input: string) => {
+    try {
+      const newUsername = input.trim();
+      
+      // If empty input, keep current shape
+      if (newUsername === '') {
+        const keepMessage: Message = {
+          type: 'system',
+          content: 'Shape unchanged.'
+        };
+        setMessages(prev => [...prev, keepMessage]);
+        setInputMode('normal');
+        return;
+      }
+
+      // Validate the new shape by fetching its info (don't rely on cache)
+      const headers: Record<string, string> = {};
+      const token = await getToken();
+      
+      // Add API key if available
+      if (config.apiKey || apiKey) {
+        headers.Authorization = `Bearer ${apiKey || config.apiKey}`;
+      }
+      
+      // Add auth token if available
+      if (token) {
+        headers['X-User-Auth'] = token;
+      }
+      
+      // Add app ID if available
+      const currentAppId = appId || config.appId;
+      if (currentAppId) {
+        headers['X-App-ID'] = currentAppId;
+      }
+      
+      // Add user ID if set
+      if (userId) {
+        headers['X-User-ID'] = userId;
+      }
+      
+      // Add channel ID if set
+      if (channelId) {
+        headers['X-Channel-ID'] = channelId;
+      }
+
+      const response = await fetch(`${endpoint.replace('/v1', '')}/shapes/public/${newUsername}`, {
+        method: 'GET',
+        headers
+      });
+
+      if (!response.ok) {
+        throw new Error(`Shape "${newUsername}" not found or not accessible: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json() as Record<string, unknown>;
+      
+      // Verify the shape is enabled
+      if (!data.enabled) {
+        throw new Error(`Shape "${newUsername}" is disabled`);
+      }
+
+      // Save the new shape username
+      await saveShapeUsername(newUsername);
+      setCurrentShapeUsername(newUsername);
+      
+      // Update the shape name display
+      const newModel = `shapesinc/${newUsername}`;
+      setShapeName(newModel);
+      
+      // Clear old shape cache since we're switching shapes
+      await clearShapeCache();
+      setCachedShapeId('');
+
+      const successMessage: Message = {
+        type: 'system',
+        content: `✅ Shape changed to: shapesinc/${newUsername} (${data.name || newUsername})`
+      };
+      setMessages(prev => [...prev, successMessage]);
+
+      // Return to normal input mode
+      setInputMode('normal');
+
+    } catch (error) {
+      const errorMessage: Message = {
+        type: 'system',
+        content: `❌ Error changing shape: ${(error as Error).message}`
+      };
+      setMessages(prev => [...prev, errorMessage]);
+
+      // Return to normal input mode on error
+      setInputMode('normal');
     }
   };
 
@@ -958,7 +1094,7 @@ export const App = () => {
       }
       case 'info': {
         try {
-          const username = args[0] || config.username;
+          const username = args[0] || currentShapeUsername || config.username;
 
           // Prepare headers
           const token = await getToken();
@@ -1209,7 +1345,7 @@ export const App = () => {
 
           if (!shapeId) {
             // Try to fetch shape_id
-            const username = config.username;
+            const username = currentShapeUsername || config.username;
             const response = await fetch(`${endpoint.replace('/v1', '')}/shapes/public/${username}`);
 
             if (!response.ok) {
@@ -1342,10 +1478,30 @@ export const App = () => {
         }
         break;
       }
+      case 'shape': {
+        const newUsername = args.join(' ').trim();
+        
+        if (newUsername === '') {
+          // No username provided, switch to input mode
+          const currentUsername = currentShapeUsername || config.username;
+          const currentModel = `shapesinc/${currentUsername}`;
+          const promptMessage: Message = {
+            type: 'system',
+            content: `Current shape: ${currentModel}\nEnter new shape username (or press Escape to cancel):`
+          };
+          setMessages(prev => [...prev, promptMessage]);
+          setInputMode('awaiting_shape');
+          return;
+        }
+
+        // Username provided directly, handle it
+        await handleShapeInput(newUsername);
+        break;
+      }
       case 'help': {
         const helpMessage: Message = {
           type: 'system',
-          content: 'Available commands:\n/login - Authenticate with Shapes API\n/logout - Clear authentication token\n/key [api-key] - Set API key (empty to clear and prompt for new one)\n/user [id] - Set user ID (empty to clear)\n/channel [id] - Set channel ID (empty to clear)\n/application [id] - Set application ID (empty to clear)\n/info [username] - Show shape profile info (current shape if no username provided)\n/info:application - Show current application info\n/memories [page] - Show conversation summaries for current shape (page 1 if not specified)\n/images - List available image files\n/image [filename] - Upload an image (specify filename or auto-select first)\n/images:clear - Clear uploaded images\n/clear - Clear chat history\n/tools - List available tools\n/tools:enable <name> - Enable a tool\n/tools:disable <name> - Disable a tool\n/exit - Exit the application\n/help - Show this help message'
+          content: 'Available commands:\n/login - Authenticate with Shapes API\n/logout - Clear authentication token\n/key [api-key] - Set API key (empty to clear and prompt for new one)\n/user [id] - Set user ID (empty to clear)\n/channel [id] - Set channel ID (empty to clear)\n/application [id] - Set application ID (empty to clear)\n/shape [username] - Change current shape (prompts for username if not provided)\n/info [username] - Show shape profile info (current shape if no username provided)\n/info:application - Show current application info\n/memories [page] - Show conversation summaries for current shape (page 1 if not specified)\n/images - List available image files\n/image [filename] - Upload an image (specify filename or auto-select first)\n/images:clear - Clear uploaded images\n/clear - Clear chat history\n/tools - List available tools\n/tools:enable <name> - Enable a tool\n/tools:disable <name> - Disable a tool\n/exit - Exit the application\n/help - Show this help message'
         };
         setMessages(prev => [...prev, helpMessage]);
         break;
@@ -1587,6 +1743,13 @@ export const App = () => {
               const cancelMessage: Message = {
                 type: 'system',
                 content: 'API key entry cancelled.'
+              };
+              setMessages(prev => [...prev, cancelMessage]);
+            } else if (inputMode === 'awaiting_shape') {
+              setInputMode('normal');
+              const cancelMessage: Message = {
+                type: 'system',
+                content: 'Shape change cancelled.'
               };
               setMessages(prev => [...prev, cancelMessage]);
             }

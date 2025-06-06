@@ -276,6 +276,50 @@ export const MessageList = ({ messages, shapeName }: MessageListProps) => {
       );
     }
 
+    // Special rendering for shape change messages
+    if (message.type === 'system' && message.content.includes('Shape changed to:')) {
+      const match = message.content.match(/^(✅ Shape changed to: )shapesinc\/([^)]+)( \(.*\))$/);
+      if (match) {
+        const [, prefix, username, suffix] = match;
+        return (
+          <Box key={`message-${index}`} flexDirection="column" marginBottom={1}>
+            <Text color="magenta">System:</Text>
+            <Box marginLeft={2}>
+              <Text color="green">{prefix}</Text>
+              <Text color="gray">shapesinc/</Text>
+              <Text color="cyan">{username}</Text>
+              <Text color="gray">{suffix}</Text>
+            </Box>
+          </Box>
+        );
+      }
+    }
+
+    // Special rendering for current shape prompt messages
+    if (message.type === 'system' && message.content.includes('Current shape:') && message.content.includes('Enter new shape username')) {
+      const lines = message.content.split('\n');
+      const currentShapeLine = lines[0];
+      const promptLine = lines[1];
+      
+      const match = currentShapeLine.match(/^(Current shape: )shapesinc\/(.+)$/);
+      if (match) {
+        const [, prefix, username] = match;
+        return (
+          <Box key={`message-${index}`} flexDirection="column" marginBottom={1}>
+            <Text color="magenta">System:</Text>
+            <Box marginLeft={2} flexDirection="column">
+              <Box>
+                <Text color="gray">{prefix}</Text>
+                <Text color="gray">shapesinc/</Text>
+                <Text color="cyan">{username}</Text>
+              </Box>
+              <Text color="gray">{promptLine}</Text>
+            </Box>
+          </Box>
+        );
+      }
+    }
+
     const formattedContent = message.content.replace(
       /```(\w+)?\n([\s\S]*?)```/g,
       (_match, language, code) => renderCodeBlock(code, language)

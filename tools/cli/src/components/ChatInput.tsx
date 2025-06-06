@@ -11,7 +11,7 @@ interface ChatInputProps {
   authStatus: string;
   endpoint: string;
   terminalWidth: number;
-  inputMode?: 'normal' | 'awaiting_auth' | 'awaiting_key';
+  inputMode?: 'normal' | 'awaiting_auth' | 'awaiting_key' | 'awaiting_shape';
   onEscape?: () => void;
   userId?: string;
   channelId?: string;
@@ -24,7 +24,7 @@ export const ChatInput = ({ onSend, images, enabledToolsCount, shapeName, authSt
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useInput((input, key) => {
-    if (key.escape && (inputMode === 'awaiting_auth' || inputMode === 'awaiting_key') && onEscape) {
+    if (key.escape && (inputMode === 'awaiting_auth' || inputMode === 'awaiting_key' || inputMode === 'awaiting_shape') && onEscape) {
       onEscape();
     }
 
@@ -101,6 +101,7 @@ export const ChatInput = ({ onSend, images, enabledToolsCount, shapeName, authSt
             placeholder={
               inputMode === 'awaiting_auth' ? 'Enter authorization code (ESC to cancel)...' :
               inputMode === 'awaiting_key' ? 'Enter API key (ESC to cancel)...' :
+              inputMode === 'awaiting_shape' ? 'Enter shape username (ESC to cancel)...' :
               'Type your message or use /help for commands...'
             }
           />
