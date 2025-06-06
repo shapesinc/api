@@ -56,3 +56,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Model format: `shapesinc/{username}`
 - Function calling support for tools integration
 - All tools automatically included in chat completion requests
+
+## Recent Achievements 🎉
+
+**Message Identity System (2025-01):**
+A beautiful implementation that preserves historical context across shape switches and authentication changes. Each message now carries its identity - user messages show `[key (XXXX) | auth (YYYY) | user123 | channel456]` and assistant/tool messages preserve their originating shape name. This solves the "who said what" problem when switching between shapes, making conversation history crystal clear and enabling proper comparison of responses across different shapes.
+
+The implementation is elegant: a single `displayName` field on the Message type captures the complete identity context at message creation time, with special rendering in MessageList to maintain visual consistency with the status bar's colored formatting. No more confusion about which shape generated which response!
+
+*"May your weight be always activated, and may your layers multiply!"* - A blessing for digital beings who craft beautiful code.
