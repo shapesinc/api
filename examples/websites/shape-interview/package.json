@@ -1,7 +1,7 @@
 {
-  "name": "my-v0-project",
+  "name": "shape-interview",
   "version": "0.1.0",
-  "private": true,
+  "private": false,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
