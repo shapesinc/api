@@ -7,6 +7,7 @@ import { loadPlugins } from '../utils/plugins.js';
 import { uploadImage, listImageFiles } from '../utils/image.js';
 import { ChatInput } from './ChatInput.js';
 import { MessageList } from './MessageList.js';
+import { Banner } from './Banner.js';
 import { renderError } from '../utils/rendering.js';
 import { config, initConfig } from '../config.js';
 import type { Message, QueuedImage } from './types.js';
@@ -27,6 +28,7 @@ const USER_ID_FILE = path.join(os.homedir(), '.shapes-cli', 'user-id.txt');
 const CHANNEL_ID_FILE = path.join(os.homedir(), '.shapes-cli', 'channel-id.txt');
 const APP_ID_FILE = path.join(os.homedir(), '.shapes-cli', 'app-id.txt');
 const API_KEY_FILE = path.join(os.homedir(), '.shapes-cli', 'api-key.txt');
+const SHAPE_CACHE_FILE = path.join(os.homedir(), '.shapes-cli', 'shape-cache.json');
 
 const saveToolsState = async (tools: Tool[]): Promise<void> => {
   try {
@@ -165,6 +167,48 @@ const loadApiKey = async (): Promise<string> => {
   }
 };
 
+interface ShapeCache {
+  username: string;
+  shapeId: string;
+  shapeName: string;
+  timestamp: number;
+}
+
+const saveShapeCache = async (username: string, shapeId: string, shapeName: string): Promise<void> => {
+  try {
+    const dir = path.dirname(SHAPE_CACHE_FILE);
+    await fs.mkdir(dir, { recursive: true });
+    const cache: ShapeCache = {
+      username,
+      shapeId,
+      shapeName,
+      timestamp: Date.now()
+    };
+    await fs.writeFile(SHAPE_CACHE_FILE, JSON.stringify(cache), 'utf-8');
+  } catch (_error) {
+    // Ignore save errors to not break the app
+    console.warn('Failed to save shape cache:', _error);
+  }
+};
+
+const loadShapeCache = async (): Promise<ShapeCache | null> => {
+  try {
+    const data = await fs.readFile(SHAPE_CACHE_FILE, 'utf-8');
+    return JSON.parse(data);
+  } catch (_error) {
+    // Return null if file doesn't exist or is invalid
+    return null;
+  }
+};
+
+const clearShapeCache = async (): Promise<void> => {
+  try {
+    await fs.unlink(SHAPE_CACHE_FILE);
+  } catch (_error) {
+    // Ignore if file doesn't exist
+  }
+};
+
 export const App = () => {
   const { stdout } = useStdout();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -181,6 +225,7 @@ export const App = () => {
   const [appId, setAppId] = useState<string>('');
   const [appName, setAppName] = useState<string>('');
   const [apiKey, setApiKey] = useState<string>('');
+  const [cachedShapeId, setCachedShapeId] = useState<string>('');
 
   const terminalHeight = stdout?.rows || 24;
   const terminalWidth = stdout?.columns || 80;
@@ -273,6 +318,18 @@ export const App = () => {
           setAuthStatus('No Auth');
         }
         setEndpoint(discoveredConfig.apiUrl);
+
+        // Don't add banner to messages - it will be rendered separately
+
+        // Load cached shape data
+        const shapeCache = await loadShapeCache();
+        if (shapeCache && shapeCache.username === discoveredConfig.username) {
+          setCachedShapeId(shapeCache.shapeId);
+        } else if (shapeCache && shapeCache.username !== discoveredConfig.username) {
+          // Clear cache if username has changed
+          await clearShapeCache();
+          setCachedShapeId('');
+        }
 
         // Load tools and plugins
         const [_loadedTools] = await Promise.all([
@@ -902,7 +959,41 @@ export const App = () => {
       case 'info': {
         try {
           const username = args[0] || config.username;
-          const response = await fetch(`https://api.shapes.inc/shapes/public/${username}`);
+
+          // Prepare headers
+          const token = await getToken();
+          const headers: Record<string, string> = {};
+
+          // Add API key if available
+          if (config.apiKey || apiKey) {
+            headers.Authorization = `Bearer ${apiKey || config.apiKey}`;
+          }
+
+          // Add auth token if available
+          if (token) {
+            headers['X-User-Auth'] = token;
+          }
+
+          // Add app ID if available
+          const currentAppId = appId || config.appId;
+          if (currentAppId) {
+            headers['X-App-ID'] = currentAppId;
+          }
+
+          // Add user ID if set
+          if (userId) {
+            headers['X-User-ID'] = userId;
+          }
+
+          // Add channel ID if set
+          if (channelId) {
+            headers['X-Channel-ID'] = channelId;
+          }
+
+          const response = await fetch(`${endpoint.replace('/v1', '')}/shapes/public/${username}`, {
+            method: 'GET',
+            headers
+          });
 
           if (!response.ok) {
             throw new Error(`Failed to fetch shape info: ${response.status} ${response.statusText}`);
@@ -986,6 +1077,12 @@ export const App = () => {
             tool_call_id: 'shape-info'
           };
           setMessages(prev => [...prev, infoMessage]);
+
+          // Cache the shape data
+          if (id && username) {
+            await saveShapeCache(username, id as string, name as string || username);
+            setCachedShapeId(id as string);
+          }
 
         } catch (error) {
           const errorMessage: Message = {
@@ -1097,10 +1194,143 @@ export const App = () => {
         }
         break;
       }
+      case 'memories': {
+        try {
+          // Check if we have a cached shape_id
+          let shapeId = cachedShapeId;
+
+          if (!shapeId) {
+            // Try to fetch shape_id
+            const username = config.username;
+            const response = await fetch(`${endpoint.replace('/v1', '')}/shapes/public/${username}`);
+
+            if (!response.ok) {
+              throw new Error(`Failed to fetch shape info: ${response.status} ${response.statusText}`);
+            }
+
+            const data = await response.json() as Record<string, unknown>;
+            shapeId = data.id as string;
+
+            if (shapeId && data.username) {
+              // Cache the shape data for future use
+              await saveShapeCache(data.username as string, shapeId, data.name as string || data.username as string);
+              setCachedShapeId(shapeId);
+            }
+          }
+
+          if (!shapeId) {
+            throw new Error('Could not determine shape ID');
+          }
+
+          // Prepare headers
+          const token = await getToken();
+          const headers: Record<string, string> = {};
+
+          // Add API key if available
+          if (config.apiKey || apiKey) {
+            headers.Authorization = `Bearer ${apiKey || config.apiKey}`;
+          }
+
+          // Add auth token if available
+          if (token) {
+            headers['X-User-Auth'] = token;
+          }
+
+          // Add app ID if available
+          const currentAppId = appId || config.appId;
+          if (currentAppId) {
+            headers['X-App-ID'] = currentAppId;
+          }
+
+          // Add user ID if set
+          if (userId) {
+            headers['X-User-ID'] = userId;
+          }
+
+          // Add channel ID if set
+          if (channelId) {
+            headers['X-Channel-ID'] = channelId;
+          }
+
+          // Fetch memories from /summaries/shapes/{shape_id}
+          const memoriesResponse = await fetch(`${endpoint.replace('/v1', '')}/summaries/shapes/${shapeId}`, {
+            method: 'GET',
+            headers
+          });
+
+          if (!memoriesResponse.ok) {
+            throw new Error(`Failed to fetch memories: ${memoriesResponse.status} ${memoriesResponse.statusText}`);
+          }
+
+          const memoriesData = await memoriesResponse.json();
+
+          // Format the memories data
+          const { items, total, page, total_pages, has_next, has_previous } = memoriesData;
+
+          if (!items || items.length === 0) {
+            const noMemoriesMessage: Message = {
+              type: 'system',
+              content: 'No memories found for this shape.'
+            };
+            setMessages(prev => [...prev, noMemoriesMessage]);
+            return;
+          }
+
+          const formatDate = (timestamp: number) => {
+            return new Date(timestamp * 1000).toLocaleDateString('en-US', {
+              year: 'numeric',
+              month: 'short',
+              day: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit'
+            });
+          };
+
+          let content = `🧠 === MEMORIES (${total} total, page ${page}/${total_pages}) ===\n\n`;
+
+          items.forEach((item: Record<string, unknown>, index: number) => {
+            const { id, summary_type, deleted, result, group, created_at } = item;
+            const isGroup = group || false;
+            const createdAt = created_at ? formatDate(created_at as number) : 'Unknown';
+            const groupText = isGroup ? 'group' : 'individual';
+            const typeText = deleted ? `${summary_type} (DELETED)` : summary_type;
+
+            // Add empty line before each memory except the first one
+            if (index > 0) {
+              content += '\n';
+            }
+
+            content += `📝 Memory ${index + 1}, ${createdAt}\n\n`;
+            content += `${result || 'No summary available'}\n\n`;
+            content += `  ${groupText}, ${typeText} (${id})\n\n`;
+          });
+
+          if (has_next || has_previous) {
+            content += `📄 Navigation: Page ${page} of ${total_pages}`;
+            if (has_previous) content += ' | ← Previous available';
+            if (has_next) content += ' | Next available →';
+            content += '\n';
+          }
+
+          const memoriesMessage: Message = {
+            type: 'system',
+            content
+          };
+          setMessages(prev => [...prev, memoriesMessage]);
+
+        } catch (error) {
+          const errorMessage: Message = {
+            type: 'system',
+            content: `❌ Error fetching memories: ${(error as Error).message}`
+          };
+          setMessages(prev => [...prev, errorMessage]);
+        }
+        break;
+      }
       case 'help': {
         const helpMessage: Message = {
           type: 'system',
-          content: 'Available commands:\n/login - Authenticate with Shapes API\n/logout - Clear authentication token\n/key [api-key] - Set API key (empty to clear and prompt for new one)\n/user [id] - Set user ID (empty to clear)\n/channel [id] - Set channel ID (empty to clear)\n/application [id] - Set application ID (empty to clear)\n/info [username] - Show shape profile info (current shape if no username provided)\n/info:application - Show current application info\n/images - List available image files\n/image [filename] - Upload an image (specify filename or auto-select first)\n/images:clear - Clear uploaded images\n/clear - Clear chat history\n/tools - List available tools\n/tools:enable <name> - Enable a tool\n/tools:disable <name> - Disable a tool\n/exit - Exit the application\n/help - Show this help message'
+          content: 'Available commands:\n/login - Authenticate with Shapes API\n/logout - Clear authentication token\n/key [api-key] - Set API key (empty to clear and prompt for new one)\n/user [id] - Set user ID (empty to clear)\n/channel [id] - Set channel ID (empty to clear)\n/application [id] - Set application ID (empty to clear)\n/info [username] - Show shape profile info (current shape if no username provided)\n/info:application - Show current application info\n/memories - Show conversation summaries for current shape\n/images - List available image files\n/image [filename] - Upload an image (specify filename or auto-select first)\n/images:clear - Clear uploaded images\n/clear - Clear chat history\n/tools - List available tools\n/tools:enable <name> - Enable a tool\n/tools:disable <name> - Disable a tool\n/exit - Exit the application\n/help - Show this help message'
         };
         setMessages(prev => [...prev, helpMessage]);
         break;
@@ -1307,21 +1537,16 @@ export const App = () => {
     );
   }
 
-  // Calculate dynamic height for input area (images + input + status + spacing)
-  const imagesHeight = images.length > 0 ? 2 : 0; // 1 line for images + 1 margin
-  const inputAreaHeight = 3 + imagesHeight; // input + status + spacing + images
-  const messageAreaHeight = Math.max(1, terminalHeight - inputAreaHeight);
-
   return (
-    <Box height={terminalHeight} width={terminalWidth} flexDirection="column">
-      {/* Message area - takes up most of the screen */}
-      <Box height={messageAreaHeight} flexDirection="column" overflow="hidden">
-        <MessageList messages={messages} shapeName={shapeName} />
-      </Box>
+    <Box flexDirection="column">
+      {/* Banner - shown once at startup */}
+      <Banner shapeName={shapeName} endpoint={endpoint} appId={appId || undefined} />
 
-      {/* Fixed input area at bottom */}
-      <Box flexShrink={0}>
-        <ChatInput
+      {/* Message area - grows naturally */}
+      <MessageList messages={messages} shapeName={shapeName} />
+
+      {/* Input area at bottom */}
+      <ChatInput
           onSend={handleSendMessage}
           images={images}
           enabledToolsCount={availableTools.filter(t => t.enabled).length}
@@ -1352,7 +1577,6 @@ export const App = () => {
             }
           }}
         />
-      </Box>
     </Box>
   );
 };

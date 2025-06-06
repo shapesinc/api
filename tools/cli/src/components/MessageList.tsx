@@ -10,6 +10,7 @@ interface MessageListProps {
 }
 
 export const MessageList = ({ messages, shapeName }: MessageListProps) => {
+
   const getAssistantLabel = () => {
     if (shapeName?.startsWith('shapesinc/')) {
       const parts = shapeName.split('/');
@@ -176,7 +177,81 @@ export const MessageList = ({ messages, shapeName }: MessageListProps) => {
     );
   };
 
+  const renderMemories = (content: string) => {
+    const lines = content.split('\n');
+    return (
+      <Box flexDirection="column">
+        {lines.map((line, lineIndex) => {
+          const key = `${lineIndex}`;
+
+          // Header line
+          if (line.includes('=== MEMORIES')) {
+            return <Text key={key} color="white">{line}</Text>;
+          }
+
+          // Memory header with date/time
+          if (line.match(/^📝 Memory \d+, /)) {
+            const match = line.match(/^(📝 Memory )(\d+)(, )(.+)$/);
+            if (match) {
+              const [, prefix, number, , datetime] = match;
+              return (
+                <Text key={key}>
+                  <Text color="yellow">{prefix}</Text>
+                  <Text color="yellow">{number}</Text>
+                  <Text color="gray"> {datetime}</Text>
+                </Text>
+              );
+            }
+            return <Text key={key} color="white">{line}</Text>;
+          }
+
+          // System info line (group, type, id)
+          if (line.match(/^\s+(individual|group), .+ \(.+\)$/)) {
+            const match = line.match(/^\s+((individual|group)), (.+) (\(.+\))$/);
+            if (match) {
+              const [, groupType, , typeText, id] = match;
+              return (
+                <Text key={key}>
+                  <Text color="gray">  </Text>
+                  <Text color="cyan">{groupType}</Text>
+                  <Text color="gray">, {typeText} </Text>
+                  <Text color="gray">{id}</Text>
+                </Text>
+              );
+            }
+            return <Text key={key} color="gray">{line}</Text>;
+          }
+
+          // Navigation line
+          if (line.includes('📄 Navigation:')) {
+            return <Text key={key} color="white">{line}</Text>;
+          }
+
+          // Empty lines
+          if (line.trim() === '') {
+            return <Text key={key}> </Text>;
+          }
+
+          // Summary content (should be white, not indented)
+          return <Text key={key} color="white">{line}</Text>;
+        })}
+      </Box>
+    );
+  };
+
   const renderMessage = (message: Message, index: number) => {
+    // Special rendering for memories
+    if (message.type === 'system' && message.content.includes('=== MEMORIES')) {
+      return (
+        <Box key={`message-${index}`} flexDirection="column" marginBottom={1}>
+          <Text color="magenta">System:</Text>
+          <Box marginLeft={2}>
+            {renderMemories(message.content)}
+          </Box>
+        </Box>
+      );
+    }
+
     // Special rendering for shape info
     if (message.type === 'system' && message.tool_call_id === 'shape-info') {
       return (
