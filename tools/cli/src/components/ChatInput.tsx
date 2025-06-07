@@ -17,10 +17,11 @@ interface ChatInputProps {
     channelId?: string;
     appName?: string;
     appId?: string;
+    serverType?: 'prod' | 'local' | 'debugger' | 'custom';
     onRemoveImage?: (index: number) => void;
 }
 
-export const ChatInput = ({ onSend, images, enabledToolsCount, shapeName, authStatus, endpoint, terminalWidth, inputMode = 'normal', onEscape, userId, channelId, appName, appId, onRemoveImage }: ChatInputProps) => {
+export const ChatInput = ({ onSend, images, enabledToolsCount, shapeName, authStatus, endpoint, terminalWidth, inputMode = 'normal', onEscape, userId, channelId, appName, appId, serverType, onRemoveImage }: ChatInputProps) => {
     const [input, setInput] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -67,9 +68,35 @@ export const ChatInput = ({ onSend, images, enabledToolsCount, shapeName, authSt
     };
 
     const getEndpointInfo = () => {
-        const isProduction = endpoint.includes('api.shapes.inc');
-        const displayUrl = isProduction ? 'prod' : endpoint.replace(/^https?:\/\//, '');
-        const color = isProduction ? 'green' : 'yellow';
+        let displayUrl: string;
+        let color: string;
+
+        switch (serverType) {
+            case 'prod':
+                displayUrl = 'prod';
+                color = 'green';
+                break;
+            case 'local':
+                displayUrl = 'local';
+                color = 'yellow';
+                break;
+            case 'debugger':
+                displayUrl = 'debugger';
+                color = 'cyan';
+                break;
+            case 'custom':
+                displayUrl = endpoint.replace(/^https?:\/\//, '').replace(/\/v1$/, '');
+                color = 'magenta';
+                break;
+            default:
+                {
+                    // Fallback to old logic if serverType not provided
+                    const isProduction = endpoint.includes('api.shapes.inc');
+                    displayUrl = isProduction ? 'prod' : endpoint.replace(/^https?:\/\//, '');
+                    color = isProduction ? 'green' : 'yellow';
+                }
+        }
+
         return { displayUrl, color };
     };
 

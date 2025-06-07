@@ -10,7 +10,8 @@ import { MessageList } from './MessageList.js';
 import { Banner } from './Banner.js';
 import { renderError } from '../utils/rendering.js';
 import chalk from 'chalk';
-import { config, initConfig } from '../config.js';
+import { config, initConfig, resetDiscoveryCache } from '../config.js';
+import net from 'node:net';
 import type { Message, QueuedImage } from './types.js';
 import open from 'open';
 import fs from 'node:fs/promises';
@@ -270,6 +271,41 @@ const loadOptions = async (): Promise<AppOptions> => {
     }
 };
 
+const checkServerAvailability = (host: string, port: number, timeoutMs: number = 200): Promise<boolean> => {
+    return new Promise((resolve) => {
+        const sock = new net.Socket();
+        let settled = false;
+        const onDone = (up: boolean) => {
+            if (!settled) {
+                settled = true;
+                sock.destroy();
+                resolve(up);
+            }
+        };
+        sock.setTimeout(timeoutMs);
+        sock.once("connect", () => onDone(true));
+        sock.once("timeout", () => onDone(false));
+        sock.once("error", () => onDone(false));
+        sock.connect(port, host);
+    });
+};
+
+const detectServerType = (apiUrl: string): 'prod' | 'local' | 'debugger' | 'custom' => {
+    if (apiUrl.includes('api.shapes.inc')) return 'prod';
+    if (apiUrl.includes('localhost:8080')) return 'local';
+    if (apiUrl.includes('localhost:8090')) return 'debugger';
+    return 'custom';
+};
+
+const getServerDisplayName = (type: 'prod' | 'local' | 'debugger' | 'custom', customUrl?: string): string => {
+    switch (type) {
+        case 'prod': return 'api.shapes.inc';
+        case 'local': return 'localhost:8080';
+        case 'debugger': return 'localhost:8090';
+        case 'custom': return customUrl || 'custom';
+    }
+};
+
 export const App = () => {
     const { stdout } = useStdout();
     const [messages, setMessages] = useState<Message[]>([]);
@@ -289,6 +325,8 @@ export const App = () => {
     const [cachedShapeId, setCachedShapeId] = useState<string>('');
     const [currentShapeUsername, setCurrentShapeUsername] = useState<string>('');
     const [options, setOptions] = useState<AppOptions>(DEFAULT_OPTIONS);
+    const [serverType, setServerType] = useState<'prod' | 'local' | 'debugger' | 'custom'>('prod');
+    const [customServerUrl, setCustomServerUrl] = useState<string>('');
 
     const terminalHeight = stdout?.rows || 24;
     const terminalWidth = stdout?.columns || 80;
@@ -387,6 +425,11 @@ export const App = () => {
                     setAuthStatus('No Auth');
                 }
                 setEndpoint(discoveredConfig.apiUrl);
+                const detectedType = detectServerType(discoveredConfig.apiUrl);
+                setServerType(detectedType);
+                if (detectedType === 'custom') {
+                    setCustomServerUrl(discoveredConfig.apiUrl);
+                }
 
                 // Don't add banner to messages - it will be rendered separately
 
@@ -1654,6 +1697,118 @@ export const App = () => {
                 }
                 break;
             }
+            case 'server': {
+                const serverArg = args[0]?.toLowerCase();
+
+                if (!serverArg) {
+                    // Show server status and options
+                    const [debuggerAvailable, localAvailable] = await Promise.all([
+                        checkServerAvailability('localhost', 8090),
+                        checkServerAvailability('localhost', 8080)
+                    ]);
+
+                    const getServerStatus = (type: 'prod' | 'local' | 'debugger' | 'custom', available: boolean) => {
+                        const name = getServerDisplayName(type, type === 'custom' ? customServerUrl : undefined);
+                        const isSelected = serverType === type;
+                        
+                        if (isSelected) return chalk.green(`${name} (current)`);
+                        if (type === 'prod') return chalk.white(name);
+                        if (available) return chalk.white(name);
+                        return chalk.gray(name);
+                    };
+
+                    let serverContent = `Available servers:
+
+↳ ${chalk.cyan('prod')} (${getServerStatus('prod', true)})
+↳ ${chalk.cyan('debugger')} (${getServerStatus('debugger', debuggerAvailable)})
+↳ ${chalk.cyan('local')} (${getServerStatus('local', localAvailable)})`;
+
+                    if (serverType === 'custom') {
+                        serverContent += `\n↳ ${chalk.cyan('custom')} (${getServerStatus('custom', true)})`;
+                    }
+
+                    const serverMessage: Message = {
+                        type: 'system',
+                        content: serverContent
+                    };
+                    setMessages(prev => [...prev, serverMessage]);
+                } else if (serverArg === 'auto') {
+                    // Re-run auto detection
+                    resetDiscoveryCache();
+                    const discoveredConfig = await initConfig();
+                    setEndpoint(discoveredConfig.apiUrl);
+                    const detectedType = detectServerType(discoveredConfig.apiUrl);
+                    setServerType(detectedType);
+                    if (detectedType === 'custom') {
+                        setCustomServerUrl(discoveredConfig.apiUrl);
+                    }
+
+                    const successMessage: Message = {
+                        type: 'system',
+                        content: `Auto-detected and switched to: ${chalk.green(getServerDisplayName(detectedType, detectedType === 'custom' ? discoveredConfig.apiUrl : undefined))}`
+                    };
+                    setMessages(prev => [...prev, successMessage]);
+                } else if (serverArg === 'prod') {
+                    setEndpoint('https://api.shapes.inc/v1');
+                    setServerType('prod');
+                    const successMessage: Message = {
+                        type: 'system',
+                        content: `Switched to: ${chalk.green('prod (api.shapes.inc)')}`
+                    };
+                    setMessages(prev => [...prev, successMessage]);
+                } else if (serverArg === 'debugger') {
+                    const debuggerAvailable = await checkServerAvailability('localhost', 8090);
+                    if (!debuggerAvailable) {
+                        const warningMessage: Message = {
+                            type: 'system',
+                            content: `${chalk.yellow('Warning:')} Debugger proxy not detected at localhost:8090. Staying on current server.`
+                        };
+                        setMessages(prev => [...prev, warningMessage]);
+                    } else {
+                        setEndpoint('http://localhost:8090/v1');
+                        setServerType('debugger');
+                        const successMessage: Message = {
+                            type: 'system',
+                            content: `Switched to: ${chalk.green('debugger (localhost:8090)')}`
+                        };
+                        setMessages(prev => [...prev, successMessage]);
+                    }
+                } else if (serverArg === 'local') {
+                    const localAvailable = await checkServerAvailability('localhost', 8080);
+                    if (!localAvailable) {
+                        const warningMessage: Message = {
+                            type: 'system',
+                            content: `${chalk.yellow('Warning:')} Local server not detected at localhost:8080. Staying on current server.`
+                        };
+                        setMessages(prev => [...prev, warningMessage]);
+                    } else {
+                        setEndpoint('http://localhost:8080/v1');
+                        setServerType('local');
+                        const successMessage: Message = {
+                            type: 'system',
+                            content: `Switched to: ${chalk.green('local (localhost:8080)')}`
+                        };
+                        setMessages(prev => [...prev, successMessage]);
+                    }
+                } else if (serverArg.startsWith('http')) {
+                    // Custom server URL
+                    setEndpoint(serverArg);
+                    setServerType('custom');
+                    setCustomServerUrl(serverArg);
+                    const successMessage: Message = {
+                        type: 'system',
+                        content: `Switched to: ${chalk.green(`custom (${serverArg})`)}`
+                    };
+                    setMessages(prev => [...prev, successMessage]);
+                } else {
+                    const errorMessage: Message = {
+                        type: 'system',
+                        content: `Unknown server: ${serverArg}. Use prod, local, debugger, auto, or a full URL.`
+                    };
+                    setMessages(prev => [...prev, errorMessage]);
+                }
+                break;
+            }
             case 'help': {
                 const helpContent = `Available commands:
 
@@ -1674,6 +1829,8 @@ export const App = () => {
 ↳ ${chalk.green('/tools')} ${chalk.green('<name>')} ${chalk.green('[on|off]')} - Show or set tool state
 ↳ ${chalk.green('/options')} - List all options
 ↳ ${chalk.green('/options')} ${chalk.green('<name>')} ${chalk.green('[value]')} - Show or set option value
+↳ ${chalk.green('/server')} - List available servers and current selection
+↳ ${chalk.green('/server')} ${chalk.green('[prod|local|debugger|auto|url]')} - Switch server or auto-detect
 ↳ ${chalk.green('/exit')} - Exit the application
 ↳ ${chalk.green('/help')} - Show this help message
 
@@ -1910,6 +2067,7 @@ Configuration files are stored in: ${chalk.cyan('~/.shapes-cli/')}`;
                 channelId={channelId}
                 appName={appName}
                 appId={appId}
+                serverType={serverType}
                 onRemoveImage={handleRemoveImage}
                 onEscape={() => {
                     if (inputMode === 'awaiting_auth') {
