@@ -16,10 +16,11 @@ interface ChatInputProps {
     userId?: string;
     channelId?: string;
     appName?: string;
+    appId?: string;
     onRemoveImage?: (index: number) => void;
 }
 
-export const ChatInput = ({ onSend, images, enabledToolsCount, shapeName, authStatus, endpoint, terminalWidth, inputMode = 'normal', onEscape, userId, channelId, appName, onRemoveImage }: ChatInputProps) => {
+export const ChatInput = ({ onSend, images, enabledToolsCount, shapeName, authStatus, endpoint, terminalWidth, inputMode = 'normal', onEscape, userId, channelId, appName, appId, onRemoveImage }: ChatInputProps) => {
     const [input, setInput] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -132,10 +133,10 @@ export const ChatInput = ({ onSend, images, enabledToolsCount, shapeName, authSt
                     <Text color={getAuthColor()}>{authStatus}</Text>
                     <Text color="gray"> | </Text>
                     <Text color={getEndpointInfo().color}>{getEndpointInfo().displayUrl}</Text>
-                    {appName && (
+                    {(appName || appId) && (
                         <>
                             <Text color="gray"> | </Text>
-                            <Text color="cyan">{appName}</Text>
+                            <Text color="cyan">{appName || appId}</Text>
                         </>
                     )}
                 </Box>

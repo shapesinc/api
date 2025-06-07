@@ -80,6 +80,15 @@ function prettyPrintJson(obj: Record<string, unknown>, { isResponse = false }: {
       } else {
         console.log(indent + chalk.gray(trimmed));
       }
+    } else if (trimmed.startsWith('"stream"')) {
+      // highlight stream parameter value
+      const partsStream = trimmed.match(/^("stream":\s*)(true|false)(,?)$/);
+      if (partsStream) {
+        const [, keyPart, valuePart, comma] = partsStream;
+        console.log(indent + chalk.gray(keyPart) + chalk.yellow(valuePart) + (comma || ''));
+      } else {
+        console.log(indent + chalk.gray(trimmed));
+      }
     } else if (isResponse && trimmed.startsWith('"finish_reason"')) {
       const parts = trimmed.match(/^"finish_reason":\s*"([^"]+)"(,?)$/);
       if (parts) {
@@ -152,9 +161,19 @@ function prettyPrintRequest(req: http.IncomingMessage, bodyBuf: Buffer): void {
 }
 
 /**
- * Pretty-print an HTTP response status and body (minimal skeleton)
+ * Check if response is streaming based on headers
  */
-function prettyPrintResponse(res: http.IncomingMessage, bodyBuf: Buffer): void {
+function isStreamingResponse(res: http.IncomingMessage): boolean {
+  const contentType = res.headers['content-type'] || '';
+  return contentType.includes('text/event-stream') ||
+         contentType.includes('application/x-ndjson') ||
+         res.headers['transfer-encoding'] === 'chunked';
+}
+
+/**
+ * Pretty-print response headers
+ */
+function prettyPrintResponseHeaders(res: http.IncomingMessage): void {
   // colored section title based on status code
   {
     const code = res.statusCode ?? 200;
@@ -191,37 +210,79 @@ function prettyPrintResponse(res: http.IncomingMessage, bodyBuf: Buffer): void {
     const colorFn = important ? chalk.magenta : chalk.gray;
     console.log(colorFn(`  ${name}: ${display}`));
   }
+}
 
-  // Body
-  if (bodyBuf?.length) {
-    console.log(chalk.bold('Body:'));
+/**
+ * Parse and print SSE chunk in real-time
+ */
+function parseAndPrintSSEChunk(chunk: Buffer, eventCounter: { count: number }): void {
+  const chunkStr = chunk.toString('utf8');
+  const lines = chunkStr.split('\n');
 
-    // Check if response is gzipped
-    const contentEncoding = res.headers['content-encoding'];
-    if (contentEncoding === 'gzip') {
-      try {
-        const decompressed = zlib.gunzipSync(bodyBuf);
-        const str = decompressed.toString('utf8');
+  for (const line of lines) {
+    if (line.startsWith('data: ')) {
+      if (line === 'data: [DONE]') {
+        console.log(chalk.blue.bold('\n=== Stream Complete ==='));
+      } else {
         try {
-          const obj = JSON.parse(str);
+          const jsonStr = line.slice(6); // Remove 'data: ' prefix
+          const obj = JSON.parse(jsonStr);
+          eventCounter.count++;
+          console.log(chalk.cyan.bold(`\n--- Event ${eventCounter.count} ---`));
           prettyPrintJson(obj, { isResponse: true });
         } catch {
-          console.log(str);
+          // Print raw line if not valid JSON
+          console.log(chalk.gray(line));
         }
-      } catch (err) {
-        console.log(chalk.red('Failed to decompress gzipped response:'), (err as Error).message);
-        console.log(chalk.gray('Raw gzipped data length:'), bodyBuf.length);
       }
-    } else {
-      const str = bodyBuf.toString('utf8');
+    } else if (line.trim()) {
+      // Print other non-empty lines (like event: or id:)
+      console.log(chalk.gray(line));
+    }
+  }
+}
+
+/**
+ * Pretty-print response body with decompression support
+ */
+function prettyPrintResponseBody(res: http.IncomingMessage, bodyBuf: Buffer): void {
+  if (!bodyBuf?.length) return;
+
+  console.log(chalk.bold('Body:'));
+
+  // Check if response is gzipped
+  const contentEncoding = res.headers['content-encoding'];
+  if (contentEncoding === 'gzip') {
+    try {
+      const decompressed = zlib.gunzipSync(bodyBuf);
+      const str = decompressed.toString('utf8');
       try {
         const obj = JSON.parse(str);
         prettyPrintJson(obj, { isResponse: true });
       } catch {
         console.log(str);
       }
+    } catch (err) {
+      console.log(chalk.red('Failed to decompress gzipped response:'), (err as Error).message);
+      console.log(chalk.gray('Raw gzipped data length:'), bodyBuf.length);
+    }
+  } else {
+    const str = bodyBuf.toString('utf8');
+    try {
+      const obj = JSON.parse(str);
+      prettyPrintJson(obj, { isResponse: true });
+    } catch {
+      console.log(str);
     }
   }
+}
+
+/**
+ * Pretty-print an HTTP response status and body (minimal skeleton)
+ */
+function prettyPrintResponse(res: http.IncomingMessage, bodyBuf: Buffer): void {
+  prettyPrintResponseHeaders(res);
+  prettyPrintResponseBody(res, bodyBuf);
 }
 
 
@@ -260,16 +321,42 @@ const server = http.createServer((clientReq, clientRes) => {
     // Forward to upstream
     const proxyReq = (upstreamUrl.protocol === 'https:' ? https : http)
       .request(options, proxyRes => {
+        const isStreaming = isStreamingResponse(proxyRes);
         const resChunks: Buffer[] = [];
-        proxyRes.on('data', chunk => resChunks.push(chunk));
-        proxyRes.on('end', () => {
-          const responseBody = Buffer.concat(resChunks);
-          // Log the response (expand later)
-          prettyPrintResponse(proxyRes, responseBody);
+        const eventCounter = { count: 0 }; // Track event numbers for streaming
 
-          // Relay status, headers, and body back to client
-          clientRes.writeHead(proxyRes.statusCode ?? 200, proxyRes.headers);
-          clientRes.end(responseBody);
+        // Print headers immediately
+        prettyPrintResponseHeaders(proxyRes);
+
+        if (isStreaming) {
+          console.log(chalk.bold('Body:'));
+        }
+
+        proxyRes.on('data', chunk => {
+          if (isStreaming) {
+            // Parse and print SSE chunk immediately with event numbering
+            parseAndPrintSSEChunk(chunk, eventCounter);
+          } else {
+            // For non-streaming responses, accumulate chunks
+            resChunks.push(chunk);
+          }
+
+          // Forward chunk to client immediately
+          clientRes.write(chunk);
+        });
+
+        proxyRes.on('end', () => {
+          if (!isStreaming) {
+            // Only show body for non-streaming responses
+            const responseBody = Buffer.concat(resChunks);
+            prettyPrintResponseBody(proxyRes, responseBody);
+          }
+
+          // Relay status and headers to client (if not already sent)
+          if (!clientRes.headersSent) {
+            clientRes.writeHead(proxyRes.statusCode ?? 200, proxyRes.headers);
+          }
+          clientRes.end();
         });
     });
 

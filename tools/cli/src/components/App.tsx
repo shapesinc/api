@@ -9,6 +9,7 @@ import { ChatInput } from './ChatInput.js';
 import { MessageList } from './MessageList.js';
 import { Banner } from './Banner.js';
 import { renderError } from '../utils/rendering.js';
+import chalk from 'chalk';
 import { config, initConfig } from '../config.js';
 import type { Message, QueuedImage } from './types.js';
 import open from 'open';
@@ -30,6 +31,7 @@ const APP_ID_FILE = path.join(os.homedir(), '.shapes-cli', 'app-id.txt');
 const API_KEY_FILE = path.join(os.homedir(), '.shapes-cli', 'api-key.txt');
 const SHAPE_CACHE_FILE = path.join(os.homedir(), '.shapes-cli', 'shape-cache.json');
 const SHAPE_USERNAME_FILE = path.join(os.homedir(), '.shapes-cli', 'shape-username.txt');
+const OPTIONS_FILE = path.join(os.homedir(), '.shapes-cli', 'options.json');
 
 const saveToolsState = async (tools: Tool[]): Promise<void> => {
     try {
@@ -240,6 +242,34 @@ const loadShapeUsername = async (): Promise<string> => {
     }
 };
 
+interface AppOptions {
+    streaming: boolean;
+}
+
+const DEFAULT_OPTIONS: AppOptions = {
+    streaming: false
+};
+
+const saveOptions = async (options: AppOptions): Promise<void> => {
+    try {
+        const dir = path.dirname(OPTIONS_FILE);
+        await fs.mkdir(dir, { recursive: true });
+        await fs.writeFile(OPTIONS_FILE, JSON.stringify(options, null, 2), 'utf-8');
+    } catch (_error) {
+        console.warn('Failed to save options:', _error);
+    }
+};
+
+const loadOptions = async (): Promise<AppOptions> => {
+    try {
+        const data = await fs.readFile(OPTIONS_FILE, 'utf-8');
+        const parsed = JSON.parse(data);
+        return { ...DEFAULT_OPTIONS, ...parsed };
+    } catch (_error) {
+        return DEFAULT_OPTIONS;
+    }
+};
+
 export const App = () => {
     const { stdout } = useStdout();
     const [messages, setMessages] = useState<Message[]>([]);
@@ -258,6 +288,7 @@ export const App = () => {
     const [apiKey, setApiKey] = useState<string>('');
     const [cachedShapeId, setCachedShapeId] = useState<string>('');
     const [currentShapeUsername, setCurrentShapeUsername] = useState<string>('');
+    const [options, setOptions] = useState<AppOptions>(DEFAULT_OPTIONS);
 
     const terminalHeight = stdout?.rows || 24;
     const terminalWidth = stdout?.columns || 80;
@@ -277,9 +308,11 @@ export const App = () => {
                 const savedAppId = await loadAppId();
                 const savedApiKey = await loadApiKey();
                 const savedShapeUsername = await loadShapeUsername();
+                const savedOptions = await loadOptions();
                 setUserId(savedUserId);
                 setChannelId(savedChannelId);
                 setCurrentShapeUsername(savedShapeUsername);
+                setOptions(savedOptions);
 
                 // Set API key from saved file or config
                 if (savedApiKey && !apiKey) {
@@ -413,7 +446,6 @@ export const App = () => {
     useEffect(() => {
         const fetchAppName = async () => {
             if (!appId) {
-                setAppName('');
                 return;
             }
 
@@ -423,12 +455,22 @@ export const App = () => {
                     'X-App-ID': appId
                 };
 
-                if (config.apiKey) {
-                    headers.Authorization = `Bearer ${config.apiKey}`;
+                if (config.apiKey || apiKey) {
+                    headers.Authorization = `Bearer ${apiKey || config.apiKey}`;
                 }
 
                 if (token) {
                     headers['X-User-Auth'] = token;
+                }
+
+                // Add user ID if set
+                if (userId) {
+                    headers['X-User-ID'] = userId;
+                }
+
+                // Add channel ID if set
+                if (channelId) {
+                    headers['X-Channel-ID'] = channelId;
                 }
 
                 const response = await fetch(`${endpoint.replace('/v1', '')}/auth/app_info`, {
@@ -450,7 +492,7 @@ export const App = () => {
         };
 
         fetchAppName();
-    }, [appId, endpoint]);
+    }, [appId, endpoint, apiKey]);
 
     const getUserDisplayName = async () => {
         const token = await getToken();
@@ -547,6 +589,7 @@ export const App = () => {
             // Prepare the request with tools and plugins
             const request = {
                 model: shapeName,
+                stream: options.streaming,
                 messages: [
                     ...messages.filter(
                         msg => msg.type !== 'system' && msg.type !== 'tool' && msg.type !== 'error'
@@ -654,6 +697,7 @@ export const App = () => {
 
                 const secondResponse = await client.chat.completions.create({
                     model: shapeName,
+                    stream: options.streaming,
                     messages: updatedMessages,
                     tools: availableTools.filter(t => t.enabled).map(tool => ({
                         type: 'function' as const,
@@ -717,6 +761,7 @@ export const App = () => {
 
                     const thirdResponse = await client.chat.completions.create({
                         model: shapeName,
+                        stream: options.streaming,
                         messages: finalMessages,
                         tools: availableTools.filter(t => t.enabled).map(tool => ({
                             type: 'function' as const,
@@ -930,6 +975,21 @@ export const App = () => {
                 break;
             }
             case 'images': {
+                const subCommand = args[0]?.toLowerCase();
+                
+                if (subCommand === 'clear') {
+                    // Handle clear subcommand
+                    const clearedCount = images.length;
+                    setImages([]);
+                    const clearMessage: Message = {
+                        type: 'system',
+                        content: clearedCount > 0 ? `Cleared ${clearedCount} queued image${clearedCount > 1 ? 's' : ''}.` : 'No images to clear.'
+                    };
+                    setMessages(prev => [...prev, clearMessage]);
+                    break;
+                }
+
+                // Default behavior: list images
                 try {
                     const imageFiles = await listImageFiles();
                     let content = '';
@@ -968,16 +1028,6 @@ export const App = () => {
                 }
                 break;
             }
-            case 'images:clear': {
-                const clearedCount = images.length;
-                setImages([]);
-                const clearMessage: Message = {
-                    type: 'system',
-                    content: clearedCount > 0 ? `Cleared ${clearedCount} queued image${clearedCount > 1 ? 's' : ''}.` : 'No images to clear.'
-                };
-                setMessages(prev => [...prev, clearMessage]);
-                break;
-            }
             case 'clear': {
                 setMessages([]);
                 const clearMessage: Message = {
@@ -988,7 +1038,10 @@ export const App = () => {
                 break;
             }
             case 'tools': {
-                if (args.length === 0) {
+                const toolName = args[0]?.toLowerCase();
+                const toolState = args[1]?.toLowerCase();
+
+                if (!toolName) {
                     // List all tools
                     const enabledCount = availableTools.filter(t => t.enabled).length;
                     let content = `Available tools (${enabledCount} enabled):\n`;
@@ -997,89 +1050,61 @@ export const App = () => {
                         content += 'No tools available.';
                     } else {
                         for (const tool of availableTools) {
-                            const status = tool.enabled ? '✓' : '○';
-                            content += `  ${status} ${tool.name} - ${tool.description}\n`;
+                            const status = tool.enabled ? 'on' : 'off';
+                            content += `  ${tool.name}: ${status} - ${tool.description}\n`;
                         }
                     }
-
-                    content += '\nUse "/tools:enable <name>" to enable a tool or "/tools:disable <name>" to disable it.';
 
                     const toolsMessage: Message = {
                         type: 'system',
                         content
                     };
                     setMessages(prev => [...prev, toolsMessage]);
+                } else {
+                    // Find the tool
+                    const toolIndex = availableTools.findIndex(t => t.name.toLowerCase() === toolName);
+                    if (toolIndex === -1) {
+                        const errorMessage: Message = {
+                            type: 'system',
+                            content: `Tool "${toolName}" not found. Use "/tools" to see available tools.`
+                        };
+                        setMessages(prev => [...prev, errorMessage]);
+                        break;
+                    }
+
+                    const tool = availableTools[toolIndex];
+
+                    if (toolState === undefined) {
+                        // Show current state
+                        const stateMessage: Message = {
+                            type: 'system',
+                            content: `${tool.name}: ${tool.enabled ? 'on' : 'off'}`
+                        };
+                        setMessages(prev => [...prev, stateMessage]);
+                    } else if (toolState === 'on' || toolState === 'off') {
+                        // Set new state
+                        const newEnabled = toolState === 'on';
+                        const updatedTools = [...availableTools];
+                        updatedTools[toolIndex].enabled = newEnabled;
+                        setAvailableTools(updatedTools);
+
+                        // Save state to disk
+                        await saveToolsState(updatedTools);
+
+                        const updateMessage: Message = {
+                            type: 'system',
+                            content: `${tool.name} set to: ${toolState}`
+                        };
+                        setMessages(prev => [...prev, updateMessage]);
+                    } else {
+                        // Invalid state value
+                        const errorMessage: Message = {
+                            type: 'system',
+                            content: `Invalid tool state: ${toolState}. Use "on" or "off".`
+                        };
+                        setMessages(prev => [...prev, errorMessage]);
+                    }
                 }
-                break;
-            }
-            case 'tools:enable': {
-                const toolName = args[0];
-                if (!toolName) {
-                    const errorMessage: Message = {
-                        type: 'system',
-                        content: 'Please specify a tool name. Use "/tools" to see available tools.'
-                    };
-                    setMessages(prev => [...prev, errorMessage]);
-                    break;
-                }
-
-                const toolIndex = availableTools.findIndex(t => t.name === toolName);
-                if (toolIndex === -1) {
-                    const errorMessage: Message = {
-                        type: 'system',
-                        content: `Tool "${toolName}" not found. Use "/tools" to see available tools.`
-                    };
-                    setMessages(prev => [...prev, errorMessage]);
-                    break;
-                }
-
-                const updatedTools = [...availableTools];
-                updatedTools[toolIndex].enabled = true;
-                setAvailableTools(updatedTools);
-
-                // Save state to disk
-                await saveToolsState(updatedTools);
-
-                const successMessage: Message = {
-                    type: 'system',
-                    content: `Tool "${toolName}" enabled.`
-                };
-                setMessages(prev => [...prev, successMessage]);
-                break;
-            }
-            case 'tools:disable': {
-                const toolName = args[0];
-                if (!toolName) {
-                    const errorMessage: Message = {
-                        type: 'system',
-                        content: 'Please specify a tool name. Use "/tools" to see available tools.'
-                    };
-                    setMessages(prev => [...prev, errorMessage]);
-                    break;
-                }
-
-                const toolIndex = availableTools.findIndex(t => t.name === toolName);
-                if (toolIndex === -1) {
-                    const errorMessage: Message = {
-                        type: 'system',
-                        content: `Tool "${toolName}" not found. Use "/tools" to see available tools.`
-                    };
-                    setMessages(prev => [...prev, errorMessage]);
-                    break;
-                }
-
-                const updatedTools = [...availableTools];
-                updatedTools[toolIndex].enabled = false;
-                setAvailableTools(updatedTools);
-
-                // Save state to disk
-                await saveToolsState(updatedTools);
-
-                const successMessage: Message = {
-                    type: 'system',
-                    content: `Tool "${toolName}" disabled.`
-                };
-                setMessages(prev => [...prev, successMessage]);
                 break;
             }
             case 'user': {
@@ -1129,8 +1154,85 @@ export const App = () => {
                 break;
             }
             case 'info': {
+                const infoType = args[0]?.toLowerCase();
+                
+                if (infoType === 'application') {
+                    // Show application info
+                    try {
+                        const currentAppId = appId || config.appId;
+                        if (!currentAppId) {
+                            throw new Error('No application ID configured');
+                        }
+
+                        const token = await getToken();
+                        const headers: Record<string, string> = {
+                            'X-App-ID': currentAppId
+                        };
+
+                        if (config.apiKey || apiKey) {
+                            headers.Authorization = `Bearer ${apiKey || config.apiKey}`;
+                        }
+
+                        if (token) {
+                            headers['X-User-Auth'] = token;
+                        }
+
+                        // Add user ID if set
+                        if (userId) {
+                            headers['X-User-ID'] = userId;
+                        }
+
+                        // Add channel ID if set
+                        if (channelId) {
+                            headers['X-Channel-ID'] = channelId;
+                        }
+
+                        const response = await fetch(`${endpoint.replace('/v1', '')}/auth/app_info`, {
+                            method: 'GET',
+                            headers
+                        });
+
+                        if (!response.ok) {
+                            throw new Error(`Failed to fetch application info: ${response.status} ${response.statusText}`);
+                        }
+
+                        const data = await response.json() as Record<string, unknown>;
+                        const { id, name, description, disabled, admin } = data;
+
+                        const appInfoContent = [
+                            '🔷 === APPLICATION INFO ===',
+                            '',
+                            '📝 Basic Info:',
+                            `  • ID: ${id}`,
+                            `  • Name: ${name}`,
+                            `  • Description: ${description || 'N/A'}`,
+                            `  • Status: ${disabled ? '❌ Disabled' : '✅ Enabled'}`,
+                            `  • Admin: ${admin ? '⚠️ Yes' : 'No'}`
+                        ].join('\n');
+
+                        const appInfoMessage: Message = {
+                            type: 'system',
+                            content: appInfoContent,
+                            tool_call_id: 'app-info'
+                        };
+                        setMessages(prev => [...prev, appInfoMessage]);
+
+                        // Update app name for status bar
+                        setAppName(name as string);
+
+                    } catch (error) {
+                        const errorMessage: Message = {
+                            type: 'system',
+                            content: `❌ Error fetching application info: ${(error as Error).message}`
+                        };
+                        setMessages(prev => [...prev, errorMessage]);
+                    }
+                    break;
+                }
+
+                // Default to shape info (infoType is 'shape' or undefined or a username)
                 try {
-                    const username = args[0] || currentShapeUsername || config.username;
+                    const username = (infoType && infoType !== 'shape') ? infoType : (args[1] || currentShapeUsername || config.username);
 
                     // Prepare headers
                     const token = await getToken();
@@ -1304,68 +1406,6 @@ export const App = () => {
                 }
                 break;
             }
-            case 'info:application': {
-                try {
-                    const currentAppId = appId || config.appId;
-                    if (!currentAppId) {
-                        throw new Error('No application ID configured');
-                    }
-
-                    const token = await getToken();
-                    const headers: Record<string, string> = {
-                        'X-App-ID': currentAppId
-                    };
-
-                    if (config.apiKey) {
-                        headers.Authorization = `Bearer ${config.apiKey}`;
-                    }
-
-                    if (token) {
-                        headers['X-User-Auth'] = token;
-                    }
-
-                    const response = await fetch(`${endpoint.replace('/v1', '')}/auth/app_info`, {
-                        method: 'GET',
-                        headers
-                    });
-
-                    if (!response.ok) {
-                        throw new Error(`Failed to fetch application info: ${response.status} ${response.statusText}`);
-                    }
-
-                    const data = await response.json() as Record<string, unknown>;
-                    const { id, name, description, disabled, admin } = data;
-
-                    const appInfoContent = [
-                        '🔷 === APPLICATION INFO ===',
-                        '',
-                        '📝 Basic Info:',
-                        `  • ID: ${id}`,
-                        `  • Name: ${name}`,
-                        `  • Description: ${description || 'N/A'}`,
-                        `  • Status: ${disabled ? '❌ Disabled' : '✅ Enabled'}`,
-                        `  • Admin: ${admin ? '⚠️ Yes' : 'No'}`
-                    ].join('\n');
-
-                    const appInfoMessage: Message = {
-                        type: 'system',
-                        content: appInfoContent,
-                        tool_call_id: 'app-info'
-                    };
-                    setMessages(prev => [...prev, appInfoMessage]);
-
-                    // Update app name for status bar
-                    setAppName(name as string);
-
-                } catch (error) {
-                    const errorMessage: Message = {
-                        type: 'system',
-                        content: `❌ Error fetching application info: ${(error as Error).message}`
-                    };
-                    setMessages(prev => [...prev, errorMessage]);
-                }
-                break;
-            }
             case 'memories': {
                 try {
                     // Parse page number from args (default to 1)
@@ -1382,7 +1422,41 @@ export const App = () => {
                     if (!shapeId) {
                         // Try to fetch shape_id
                         const username = currentShapeUsername || config.username;
-                        const response = await fetch(`${endpoint.replace('/v1', '')}/shapes/public/${username}`);
+                        
+                        // Prepare headers
+                        const token = await getToken();
+                        const headers: Record<string, string> = {};
+
+                        // Add API key if available
+                        if (config.apiKey || apiKey) {
+                            headers.Authorization = `Bearer ${apiKey || config.apiKey}`;
+                        }
+
+                        // Add auth token if available
+                        if (token) {
+                            headers['X-User-Auth'] = token;
+                        }
+
+                        // Add app ID if available
+                        const currentAppId = appId || config.appId;
+                        if (currentAppId) {
+                            headers['X-App-ID'] = currentAppId;
+                        }
+
+                        // Add user ID if set
+                        if (userId) {
+                            headers['X-User-ID'] = userId;
+                        }
+
+                        // Add channel ID if set
+                        if (channelId) {
+                            headers['X-Channel-ID'] = channelId;
+                        }
+                        
+                        const response = await fetch(`${endpoint.replace('/v1', '')}/shapes/public/${username}`, {
+                            method: 'GET',
+                            headers
+                        });
 
                         if (!response.ok) {
                             throw new Error(`Failed to fetch shape info: ${response.status} ${response.statusText}`);
@@ -1534,10 +1608,76 @@ export const App = () => {
                 await handleShapeInput(newUsername);
                 break;
             }
+            case 'options': {
+                const optionName = args[0]?.toLowerCase();
+                const optionValue = args[1];
+
+                if (!optionName) {
+                    // List all options
+                    const optionsMessage: Message = {
+                        type: 'system',
+                        content: `Current options:\nstreaming: ${options.streaming} (boolean - enables streaming responses)`
+                    };
+                    setMessages(prev => [...prev, optionsMessage]);
+                } else if (optionName === 'streaming') {
+                    if (optionValue === undefined) {
+                        // Show current value
+                        const valueMessage: Message = {
+                            type: 'system',
+                            content: `streaming: ${options.streaming}`
+                        };
+                        setMessages(prev => [...prev, valueMessage]);
+                    } else {
+                        // Set new value
+                        const newValue = optionValue.toLowerCase() === 'true';
+                        const newOptions = { ...options, streaming: newValue };
+                        setOptions(newOptions);
+                        await saveOptions(newOptions);
+                        
+                        const updateMessage: Message = {
+                            type: 'system',
+                            content: `streaming set to: ${newValue}`
+                        };
+                        setMessages(prev => [...prev, updateMessage]);
+                    }
+                } else {
+                    // Unknown option
+                    const errorMessage: Message = {
+                        type: 'system',
+                        content: `Unknown option: ${optionName}. Available options: streaming`
+                    };
+                    setMessages(prev => [...prev, errorMessage]);
+                }
+                break;
+            }
             case 'help': {
+                const helpContent = `Available commands:
+
+↳ ${chalk.green('/login')} - Authenticate with Shapes API
+↳ ${chalk.green('/logout')} - Clear authentication token
+↳ ${chalk.green('/key')} ${chalk.green('[api-key]')} - Set API key (empty to clear and prompt for new one)
+↳ ${chalk.green('/user')} ${chalk.green('[id]')} - Set user ID (empty to clear)
+↳ ${chalk.green('/channel')} ${chalk.green('[id]')} - Set channel ID (empty to clear)
+↳ ${chalk.green('/application')} ${chalk.green('[id]')} - Set application ID (empty to clear)
+↳ ${chalk.green('/shape')} ${chalk.green('[username]')} - Change current shape (prompts for username if not provided)
+↳ ${chalk.green('/info')} ${chalk.green('[shape|application]')} - Show shape or application info (defaults to current shape)
+↳ ${chalk.green('/memories')} ${chalk.green('[page]')} - Show conversation summaries for current shape (page 1 if not specified)
+↳ ${chalk.green('/images')} - List available image files
+↳ ${chalk.green('/image')} ${chalk.green('[filename]')} - Upload an image (specify filename or auto-select first)
+↳ ${chalk.green('/images')} ${chalk.green('clear')} - Clear uploaded images
+↳ ${chalk.green('/clear')} - Clear chat history
+↳ ${chalk.green('/tools')} - List available tools
+↳ ${chalk.green('/tools')} ${chalk.green('<name>')} ${chalk.green('[on|off]')} - Show or set tool state
+↳ ${chalk.green('/options')} - List all options
+↳ ${chalk.green('/options')} ${chalk.green('<name>')} ${chalk.green('[value]')} - Show or set option value
+↳ ${chalk.green('/exit')} - Exit the application
+↳ ${chalk.green('/help')} - Show this help message
+
+Configuration files are stored in: ${chalk.cyan('~/.shapes-cli/')}`;
+
                 const helpMessage: Message = {
                     type: 'system',
-                    content: 'Available commands:\n/login - Authenticate with Shapes API\n/logout - Clear authentication token\n/key [api-key] - Set API key (empty to clear and prompt for new one)\n/user [id] - Set user ID (empty to clear)\n/channel [id] - Set channel ID (empty to clear)\n/application [id] - Set application ID (empty to clear)\n/shape [username] - Change current shape (prompts for username if not provided)\n/info [username] - Show shape profile info (current shape if no username provided)\n/info:application - Show current application info\n/memories [page] - Show conversation summaries for current shape (page 1 if not specified)\n/images - List available image files\n/image [filename] - Upload an image (specify filename or auto-select first)\n/images:clear - Clear uploaded images\n/clear - Clear chat history\n/tools - List available tools\n/tools:enable <name> - Enable a tool\n/tools:disable <name> - Disable a tool\n/exit - Exit the application\n/help - Show this help message'
+                    content: helpContent
                 };
                 setMessages(prev => [...prev, helpMessage]);
                 break;
@@ -1765,6 +1905,7 @@ export const App = () => {
                 userId={userId}
                 channelId={channelId}
                 appName={appName}
+                appId={appId}
                 onRemoveImage={handleRemoveImage}
                 onEscape={() => {
                     if (inputMode === 'awaiting_auth') {
