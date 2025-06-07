@@ -212,6 +212,20 @@ function prettyPrintResponse(res: http.IncomingMessage, bodyBuf: Buffer): void {
         console.log(chalk.red('Failed to decompress gzipped response:'), (err as Error).message);
         console.log(chalk.gray('Raw gzipped data length:'), bodyBuf.length);
       }
+    } else if (contentEncoding === 'zstd') {
+      try {
+        const decompressed = zlib.zstdDecompressSync(bodyBuf);
+        const str = decompressed.toString('utf-8');
+        try {
+          const obj = JSON.parse(str);
+          prettyPrintJson(obj, { isResponse: true });
+        } catch {
+          console.log(str);
+        }
+      } catch (err) {
+        console.log(chalk.red('Failed to decompress zstd response:'), (err as Error).message);
+        console.log(chalk.gray('Raw zstd data length:'), bodyBuf.length);
+      }
     } else {
       const str = bodyBuf.toString('utf8');
       try {
