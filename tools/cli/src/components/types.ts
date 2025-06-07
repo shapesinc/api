@@ -13,4 +13,5 @@ export interface Message {
     tool_calls?: OpenAI.Chat.Completions.ChatCompletionMessageToolCall[];
     tool_call_id?: string;
     display_name?: string;
+    streaming?: boolean;
 }

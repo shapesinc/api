@@ -6,8 +6,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Interactive Mode (Default):**
 - `npm start` - Launch interactive REPL chat interface
-- `npm run dev` - Launch in development mode using ts-node
-- `npm run build` - Compile TypeScript to JavaScript
+- `npm run dev` - Launch in development mode using tsx
+- `npm run build` - Compile TypeScript to JavaScript with auto-executable permissions
+- `npm run postbuild` - Automatically runs after build to chmod +x dist/main.js
 
 **Code Quality:**
 - `npm run typecheck` - Run TypeScript type checking without emitting files
@@ -28,34 +29,54 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Architecture Overview
 
 **Core Structure:**
-- React/Ink-based CLI using TypeScript ES modules
-- OpenAI SDK client configured for Shapes API endpoints
-- Single interactive mode with integrated features (chat, images, tools)
-- Utility functions for auth, tools, plugins, rendering in `src/utils/`
-- React components for terminal UI in `src/components/`
-- Only separate command: `auth` for OAuth setup
+- React/Ink-based CLI using TypeScript ES modules with sophisticated terminal UI
+- OpenAI SDK client configured for Shapes API endpoints with auto-discovery
+- Single interactive mode with integrated features (chat, images, tools, identity management)
+- Utility functions for auth, tools, plugins, rendering, discovery in `src/utils/`
+- React components for terminal UI in `src/components/` (App.tsx is 1,796-line state manager)
+- Entry point: `src/main.tsx` with executable binary via npm bin
 
-**Key Patterns:**
-- Default launch: interactive REPL chat interface with all features
-- Authentication tokens stored in `~/.shapes-cli/token.json`
-- Tools and plugins auto-loaded and available in all conversations
-- Image upload integrated into chat input interface
-- Central config in `src/config.ts` with environment variable defaults
-- OpenAI client instantiated with custom base URL and headers for Shapes API
+**Advanced State Management:**
+- Multi-layered authentication: API key + OAuth token with dual fallback
+- User ID and Channel ID for message context and identity tracking
+- Application ID management with UUID validation and persistence
+- Shape username switching with real-time validation and metadata caching
+- Tool enable/disable state with persistent preferences
+- Image queuing system with visual status and keyboard shortcuts
+- Input mode switching (normal/awaiting_auth/awaiting_key/awaiting_shape)
 
-**Integrated Features:**
-- **Chat**: Real-time conversations with message history and slash commands
-- **Images**: Upload via interface menu, automatic base64 encoding
-- **Tools**: Auto-loaded from `~/.shapes-cli/tools/`, sent with every request
-- **Plugins**: Stored in `~/.shapes-cli/plugins/`, extend tool functionality
-- **Slash Commands**: `/login` for auth, `/logout` to clear token, `/help` for command list
+**File-Based Persistence (`~/.shapes-cli/`):**
+- `token.json` - OAuth authentication tokens
+- `tools-state.json` - Tool enable/disable preferences
+- `user-id.txt`, `channel-id.txt` - User context identity
+- `app-id.txt`, `api-key.txt` - Authentication configuration
+- `shape-cache.json` - Shape metadata caching for performance
+- `shape-username.txt` - Current shape preference
 
-**API Integration:**
-- Uses OpenAI SDK pointed at Shapes API (`https://api.shapes.inc/v1`)
-- Custom headers: `X-App-ID` and `X-User-Auth`
-- Model format: `shapesinc/{username}`
-- Function calling support for tools integration
-- All tools automatically included in chat completion requests
+**Enhanced Slash Command System:**
+- **Authentication**: `/login`, `/logout`, `/key [api-key]` with secure entry mode
+- **Identity**: `/user [id]`, `/channel [id]`, `/application [id]` with validation
+- **Shapes**: `/shape [username]`, `/info [username]`, `/info:application`
+- **History**: `/memories [page]` with paginated conversation history
+- **Images**: `/image [filename]`, `/images`, `/images:clear` with queue management
+- **Tools**: `/tools`, `/tools:enable`, `/tools:disable` with persistent state
+- **Utility**: `/clear` for chat history, `/help` for command reference
+
+**Rich Terminal UI Features:**
+- Colored status bar showing auth status, endpoint, shape, tools, and context
+- Image queuing with visual display and Ctrl+number removal shortcuts
+- Special message rendering for shape info, memories, errors with custom formatting
+- Context-sensitive input prompts for different operations
+- Auto-image detection with automatic opening of image URLs in responses
+- Visual feedback for all state changes and operations
+
+**Advanced API Integration:**
+- Auto-discovery system for endpoint detection (prod/dev/debug modes)
+- Comprehensive custom headers: `X-App-ID`, `X-User-Auth`, `X-User-ID`, `X-Channel-ID`
+- Model format: `shapesinc/{username}` with real-time shape validation
+- Multi-round function calling (up to 3 rounds) with built-in ping/echo test tools
+- Graceful fallbacks and detailed error handling with contextual messages
+- Smart defaults and automatic selection of available resources
 
 ## Recent Achievements 🎉
 

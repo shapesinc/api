@@ -47,6 +47,10 @@ let discoveredConfig:
 /**
  * Initialize configuration with auto-discovered endpoints
  */
+export function resetDiscoveryCache() {
+    discoveredConfig = null;
+}
+
 export async function initConfig() {
     if (discoveredConfig) return discoveredConfig;
 
