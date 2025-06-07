@@ -271,7 +271,7 @@ const loadOptions = async (): Promise<AppOptions> => {
     }
 };
 
-const checkServerAvailability = (host: string, port: number, timeoutMs: number = 200): Promise<boolean> => {
+const checkServerAvailability = (host: string, port: number, timeoutMs = 200): Promise<boolean> => {
     return new Promise((resolve) => {
         const sock = new net.Socket();
         let settled = false;
@@ -535,7 +535,7 @@ export const App = () => {
         };
 
         fetchAppName();
-    }, [appId, endpoint, apiKey]);
+    }, [appId, endpoint, apiKey, userId, channelId]);
 
     const getUserDisplayName = async () => {
         const token = await getToken();
@@ -563,6 +563,328 @@ export const App = () => {
 
     const getShapeDisplayName = () => {
         return shapeName;
+    };
+
+    /**
+     * Debug helper - adds debug info as system messages in chat
+     * Currently unused but kept for potential debugging needs
+     */
+    // @ts-expect-error - Keeping for potential debugging
+    const _debugInfo = (message: string) => {
+        const debugMessage: Message = {
+            type: 'system',
+            content: `🐛 DEBUG: ${message}`
+        };
+        setMessages(prev => [...prev, debugMessage]);
+    };
+
+    /**
+     * Helper function to build OpenAI message history from our Message array
+     * Filters out system messages and converts to OpenAI format
+     */
+    const buildMessageHistory = (
+        historyMessages: Message[],
+        newContent: OpenAI.ChatCompletionContentPart[]
+    ): OpenAI.ChatCompletionMessageParam[] => {
+        // Convert existing messages to OpenAI format
+        const convertedMessages = historyMessages.filter(
+            msg => msg.type !== 'system' && msg.type !== 'tool' && msg.type !== 'error'
+        ).map(msg => {
+            if (msg.type === 'user' && msg.images && msg.images.length > 0) {
+                return {
+                    role: 'user' as const,
+                    content: [
+                        { type: 'text' as const, text: msg.content },
+                        ...msg.images.map(img => ({
+                            type: 'image_url' as const,
+                            image_url: { url: img }
+                        }))
+                    ]
+                };
+            }
+
+            return {
+                role: msg.type === 'user' ? 'user' as const : 'assistant' as const,
+                content: msg.content,
+            };
+        });
+
+        // Add the new user message
+        return [
+            ...convertedMessages,
+            { role: 'user' as const, content: newContent }
+        ];
+    };
+
+    /**
+     * Processes tool calls and handles follow-up API requests (up to 3 rounds)
+     * Returns the final assistant message after all tool processing is complete
+     */
+    const processToolCalls = async (
+        initialResponse: {
+            content: string;
+            tool_calls: OpenAI.Chat.Completions.ChatCompletionMessageToolCall[];
+        },
+        messageHistory: OpenAI.ChatCompletionMessageParam[],
+        skipInitialMessage = false // Skip adding the first assistant message (for streaming)
+    ): Promise<Message> => {
+        if (!client) {
+            throw new Error('OpenAI client not initialized');
+        }
+
+        let currentResponse = initialResponse;
+        let currentHistory = [...messageHistory];
+        let roundCount = 0;
+        const maxRounds = 3;
+
+        while (currentResponse.tool_calls && currentResponse.tool_calls.length > 0 && roundCount < maxRounds) {
+            roundCount++;
+
+            // Add the assistant message with tool calls to the UI (unless skipping first message)
+            if (!skipInitialMessage || roundCount > 1) {
+                const assistantMessage: Message = {
+                    type: 'assistant',
+                    content: currentResponse.content,
+                    tool_calls: currentResponse.tool_calls,
+                    display_name: getShapeDisplayName()
+                };
+                setMessages(prev => [...prev, assistantMessage]);
+            }
+
+            // Execute all tool calls in parallel
+            const toolResults = await Promise.all(
+                currentResponse.tool_calls.map(async (toolCall) => ({
+                    tool_call_id: toolCall.id,
+                    content: await handleToolCall(toolCall)
+                }))
+            );
+
+            // Add tool result messages to the UI
+            const toolResultMessages: Message[] = toolResults.map(result => ({
+                type: 'tool',
+                content: result.content,
+                tool_call_id: result.tool_call_id,
+                display_name: getShapeDisplayName()
+            }));
+            setMessages(prev => [...prev, ...toolResultMessages]);
+
+            // Prepare the message history for the next API call
+            currentHistory = [
+                ...currentHistory,
+                {
+                    role: 'assistant' as const,
+                    content: currentResponse.content,
+                    tool_calls: currentResponse.tool_calls.map(tc => ({
+                        id: tc.id,
+                        type: tc.type,
+                        function: {
+                            name: tc.function.name,
+                            arguments: tc.function.arguments,
+                        },
+                    }))
+                },
+                ...toolResults.map(tr => ({
+                    role: 'tool' as const,
+                    content: tr.content,
+                    tool_call_id: tr.tool_call_id
+                }))
+            ];
+
+            // Make the next API call (always non-streaming for tool follow-ups)
+            const rawNextResponse = await client.chat.completions.create({
+                model: shapeName,
+                stream: false, // Always non-streaming for tool follow-ups
+                messages: currentHistory,
+                tools: availableTools.filter(t => t.enabled).map(tool => ({
+                    type: 'function' as const,
+                    function: {
+                        name: tool.name,
+                        description: tool.description,
+                        parameters: tool.parameters,
+                    },
+                })),
+            });
+
+            // Parse response if it's a string (same fix as main handler)
+            let nextResponse: OpenAI.ChatCompletion;
+            if (typeof rawNextResponse === 'string') {
+                nextResponse = JSON.parse(rawNextResponse) as OpenAI.ChatCompletion;
+            } else {
+                nextResponse = rawNextResponse;
+            }
+
+
+            // Update current response for next iteration
+            currentResponse = {
+                content: nextResponse.choices?.[0]?.message?.content || '',
+                tool_calls: nextResponse.choices?.[0]?.message?.tool_calls || []
+            };
+        }
+
+        // Return the final assistant message
+        return {
+            type: 'assistant',
+            content: currentResponse.content,
+            display_name: getShapeDisplayName(),
+            tool_calls: currentResponse.tool_calls.length > 0 ? currentResponse.tool_calls : undefined
+        };
+    };
+
+    /**
+     * Handles streaming API responses with real-time content display
+     * Accumulates chunks, displays content in real-time, then processes tool calls after completion
+     */
+    const handleStreamingResponse = async (
+        request: OpenAI.ChatCompletionCreateParams,
+        messageHistory: OpenAI.ChatCompletionMessageParam[]
+    ): Promise<void> => {
+        if (!client) {
+            throw new Error('OpenAI client not initialized');
+        }
+        // Create the streaming request
+        const stream = await client.chat.completions.create({
+            ...request,
+            stream: true
+        }) as AsyncIterable<OpenAI.ChatCompletionChunk>;
+
+        // Add a streaming message placeholder to the UI
+        const streamingMessage: Message = {
+            type: 'assistant',
+            content: '',
+            display_name: getShapeDisplayName(),
+            streaming: true
+        };
+        setMessages(prev => [...prev, streamingMessage]);
+
+        // Accumulate the streaming response
+        let accumulatedContent = '';
+        const accumulatedToolCalls: OpenAI.Chat.Completions.ChatCompletionMessageToolCall[] = [];
+
+        // Process each chunk as it arrives
+        for await (const chunk of stream) {
+            const delta = chunk.choices?.[0]?.delta;
+
+            // Handle content chunks - display in real-time
+            if (delta?.content) {
+                accumulatedContent += delta.content;
+
+                // Update the streaming message in real-time
+                setMessages(prev =>
+                    prev.map((msg, index) =>
+                        index === prev.length - 1 && msg.streaming
+                            ? { ...msg, content: accumulatedContent }
+                            : msg
+                    )
+                );
+            }
+
+            // Handle tool call chunks - accumulate for later processing
+            if (delta?.tool_calls) {
+                for (const toolCall of delta.tool_calls) {
+                    const index = toolCall.index;
+
+                    // Initialize tool call if it doesn't exist
+                    if (!accumulatedToolCalls[index]) {
+                        accumulatedToolCalls[index] = {
+                            id: toolCall.id || '',
+                            type: 'function',
+                            function: { name: '', arguments: '' }
+                        };
+                    }
+
+                    // Accumulate tool call data
+                    if (toolCall.function?.name) {
+                        accumulatedToolCalls[index].function.name += toolCall.function.name;
+                    }
+                    if (toolCall.function?.arguments) {
+                        accumulatedToolCalls[index].function.arguments += toolCall.function.arguments;
+                    }
+                }
+            }
+        }
+
+        // Finalize the streaming message (remove streaming indicator)
+        const finalMessage: Message = {
+            type: 'assistant',
+            content: accumulatedContent,
+            display_name: getShapeDisplayName(),
+            tool_calls: accumulatedToolCalls.length > 0 ? accumulatedToolCalls : undefined
+        };
+
+        setMessages(prev =>
+            prev.map((msg, index) =>
+                index === prev.length - 1 && msg.streaming
+                    ? finalMessage
+                    : msg
+            )
+        );
+
+        // Process tool calls if any were accumulated
+        if (accumulatedToolCalls.length > 0) {
+            const finalMessage = await processToolCalls(
+                {
+                    content: accumulatedContent,
+                    tool_calls: accumulatedToolCalls
+                },
+                messageHistory,
+                true // Skip initial message since we already finalized it above
+            );
+
+            setMessages(prev => [...prev, finalMessage]);
+        }
+    };
+
+    /**
+     * Handles non-streaming API responses
+     * Processes the response directly and handles tool calls if present
+     */
+    const handleNonStreamingResponse = async (
+        request: OpenAI.ChatCompletionCreateParams,
+        messageHistory: OpenAI.ChatCompletionMessageParam[]
+    ): Promise<void> => {
+        if (!client) {
+            throw new Error('OpenAI client not initialized');
+        }
+        // Create the non-streaming request
+        const rawResponse = await client.chat.completions.create({
+            ...request,
+            stream: false
+        });
+
+        // Parse response if it's a string
+        let response: OpenAI.ChatCompletion;
+        if (typeof rawResponse === 'string') {
+            response = JSON.parse(rawResponse);
+        } else {
+            response = rawResponse;
+        }
+
+        // Extract response data
+        const content = response.choices?.[0]?.message?.content || '';
+        const toolCalls = response.choices?.[0]?.message?.tool_calls;
+
+        // Check if there are tool calls to process
+        if (toolCalls && toolCalls.length > 0) {
+            // Process tool calls using the shared function
+            const finalMessage = await processToolCalls(
+                {
+                    content,
+                    tool_calls: toolCalls
+                },
+                messageHistory
+            );
+
+            // Add the final message from tool processing
+            setMessages(prev => [...prev, finalMessage]);
+        } else {
+            // No tool calls, just add the assistant message directly
+            const assistantMessage: Message = {
+                type: 'assistant',
+                content,
+                display_name: getShapeDisplayName()
+            };
+            setMessages(prev => [...prev, assistantMessage]);
+        }
     };
 
     const handleSendMessage = async (content: string, messageImages?: string[]) => {
@@ -629,34 +951,33 @@ export const App = () => {
                 messageContent = [{ type: 'text' as const, text: content }];
             }
 
+            /*
+             * NEW REFACTORED API LOGIC
+             * ======================
+             *
+             * This section has been refactored to use separate functions for streaming
+             * and non-streaming responses. Both approaches now:
+             *
+             * 1. Handle real-time content display (streaming only)
+             * 2. Accumulate tool calls properly
+             * 3. Process tool calls in a unified way after completion
+             * 4. Support up to 3 rounds of tool calling
+             *
+             * Benefits:
+             * - Cleaner, more maintainable code
+             * - Consistent tool calling behavior between modes
+             * - Better error handling and edge case coverage
+             * - Easier to test and debug
+             */
+
+            // Build the message history using our helper function
+            const messageHistory = buildMessageHistory(messages, messageContent);
+
             // Prepare the request with tools and plugins
             const request = {
                 model: shapeName,
                 stream: options.streaming,
-                messages: [
-                    ...messages.filter(
-                        msg => msg.type !== 'system' && msg.type !== 'tool' && msg.type !== 'error'
-                    ).map(msg => {
-                        if (msg.type === 'user' && msg.images && msg.images.length > 0) {
-                            return {
-                                role: 'user' as const,
-                                content: [
-                                    { type: 'text' as const, text: msg.content },
-                                    ...msg.images.map(img => ({
-                                        type: 'image_url' as const,
-                                        image_url: { url: img }
-                                    }))
-                                ]
-                            };
-                        }
-
-                        return {
-                            role: msg.type === 'user' ? 'user' as const : 'assistant' as const,
-                            content: msg.content,
-                        };
-                    }),
-                    { role: 'user' as const, content: messageContent },
-                ],
+                messages: messageHistory,
                 tools: availableTools.filter(t => t.enabled).map(tool => ({
                     type: 'function' as const,
                     function: {
@@ -667,180 +988,11 @@ export const App = () => {
                 })),
             };
 
-            const response = await client.chat.completions.create(request);
-
-            // Check for tool calls
-            if (response.choices?.[0]?.message?.tool_calls) {
-                const toolCalls = response.choices[0].message.tool_calls;
-
-                // Add assistant message with tool calls
-                const assistantMessage: Message = {
-                    type: 'assistant',
-                    content: response.choices[0]?.message?.content || '',
-                    tool_calls: toolCalls,
-                    display_name: getShapeDisplayName()
-                };
-                setMessages(prev => [...prev, assistantMessage]);
-
-                // Process each tool call
-                const toolResults: Message[] = [];
-                for (const toolCall of toolCalls) {
-                    const result = await handleToolCall(toolCall);
-                    toolResults.push({
-                        type: 'tool',
-                        content: result,
-                        tool_call_id: toolCall.id,
-                        display_name: getShapeDisplayName()
-                    });
-                }
-
-                // Add tool result messages
-                setMessages(prev => [...prev, ...toolResults]);
-
-                // Make second API call with tool results
-                const updatedMessages = [
-                    ...messages.filter(msg => msg.type !== 'system' && msg.type !== 'tool' && msg.type !== 'error').map(msg => {
-                        if (msg.type === 'user' && msg.images && msg.images.length > 0) {
-                            return {
-                                role: 'user' as const,
-                                content: [
-                                    { type: "text" as const, text: msg.content },
-                                    ...msg.images.map(img => ({
-                                        type: "image_url" as const,
-                                        image_url: { url: img }
-                                    }))
-                                ]
-                            };
-                        }
-
-                        return {
-                            role: msg.type === 'user' ? 'user' as const : 'assistant' as const,
-                            content: msg.content,
-                        };
-                    }),
-                    { role: 'user' as const, content: messageContent },
-                    {
-                        role: 'assistant' as const,
-                        content: response.choices[0]?.message?.content || '',
-                        tool_calls: toolCalls.map(tc => ({
-                            id: tc.id,
-                            type: tc.type,
-                            function: {
-                                name: tc.function.name,
-                                arguments: tc.function.arguments,
-                            },
-                        }))
-                    },
-                    ...toolResults.map(tr => ({
-                        role: 'tool' as const,
-                        content: tr.content,
-                        tool_call_id: tr.tool_call_id ?? ''
-                    }))
-                ];
-
-                const secondResponse = await client.chat.completions.create({
-                    model: shapeName,
-                    stream: options.streaming,
-                    messages: updatedMessages,
-                    tools: availableTools.filter(t => t.enabled).map(tool => ({
-                        type: 'function' as const,
-                        function: {
-                            name: tool.name,
-                            description: tool.description,
-                            parameters: tool.parameters,
-                        },
-                    })),
-                });
-
-                // Check if second response also has tool calls
-                if (secondResponse.choices?.[0]?.message?.tool_calls) {
-                    const secondToolCalls = secondResponse.choices[0].message.tool_calls;
-
-                    // Add assistant message with second tool calls
-                    const secondAssistantMessage: Message = {
-                        type: 'assistant',
-                        content: secondResponse.choices[0]?.message?.content || '',
-                        tool_calls: secondToolCalls,
-                        display_name: getShapeDisplayName()
-                    };
-                    setMessages(prev => [...prev, secondAssistantMessage]);
-
-                    // Process second set of tool calls
-                    const secondToolResults: Message[] = [];
-                    for (const toolCall of secondToolCalls) {
-                        const result = await handleToolCall(toolCall);
-                        secondToolResults.push({
-                            type: 'tool',
-                            content: result,
-                            tool_call_id: toolCall.id,
-                            display_name: getShapeDisplayName()
-                        });
-                    }
-
-                    // Add second tool result messages
-                    setMessages(prev => [...prev, ...secondToolResults]);
-
-                    // Make third API call with second tool results
-                    const finalMessages = [
-                        ...updatedMessages,
-                        {
-                            role: 'assistant' as const,
-                            content: secondResponse.choices[0]?.message?.content || '',
-                            tool_calls: secondToolCalls.map(tc => ({
-                                id: tc.id,
-                                type: tc.type,
-                                function: {
-                                    name: tc.function.name,
-                                    arguments: tc.function.arguments,
-                                },
-                            }))
-                        },
-                        ...secondToolResults.map(tr => ({
-                            role: 'tool' as const,
-                            content: tr.content,
-                            tool_call_id: tr.tool_call_id ?? ''
-                        }))
-                    ];
-
-                    const thirdResponse = await client.chat.completions.create({
-                        model: shapeName,
-                        stream: options.streaming,
-                        messages: finalMessages,
-                        tools: availableTools.filter(t => t.enabled).map(tool => ({
-                            type: 'function' as const,
-                            function: {
-                                name: tool.name,
-                                description: tool.description,
-                                parameters: tool.parameters,
-                            },
-                        })),
-                    });
-
-                    const finalMessage: Message = {
-                        type: 'assistant',
-                        content: thirdResponse.choices[0]?.message?.content || '',
-                        display_name: getShapeDisplayName()
-                    };
-                    setMessages(prev => [...prev, finalMessage]);
-
-                } else {
-                    // No more tool calls, add the final message
-                    const finalMessage: Message = {
-                        type: 'assistant',
-                        content: secondResponse.choices[0]?.message?.content || '',
-                        display_name: getShapeDisplayName()
-                    };
-                    setMessages(prev => [...prev, finalMessage]);
-                }
-
+            // Route to appropriate handler based on streaming preference
+            if (options.streaming) {
+                await handleStreamingResponse(request, messageHistory);
             } else {
-                // No tool calls, just add the assistant message
-                const assistantMessage: Message = {
-                    type: 'assistant',
-                    content: response.choices[0]?.message?.content || '',
-                    display_name: getShapeDisplayName()
-                };
-                setMessages(prev => [...prev, assistantMessage]);
+                await handleNonStreamingResponse(request, messageHistory);
             }
         } catch (err) {
             const error = err as APIError;
@@ -1019,7 +1171,7 @@ export const App = () => {
             }
             case 'images': {
                 const subCommand = args[0]?.toLowerCase();
-                
+
                 if (subCommand === 'clear') {
                     // Handle clear subcommand
                     const clearedCount = images.length;
@@ -1198,7 +1350,7 @@ export const App = () => {
             }
             case 'info': {
                 const infoType = args[0]?.toLowerCase();
-                
+
                 if (infoType === 'application') {
                     // Show application info
                     try {
@@ -1465,7 +1617,7 @@ export const App = () => {
                     if (!shapeId) {
                         // Try to fetch shape_id
                         const username = currentShapeUsername || config.username;
-                        
+
                         // Prepare headers
                         const token = await getToken();
                         const headers: Record<string, string> = {};
@@ -1495,7 +1647,7 @@ export const App = () => {
                         if (channelId) {
                             headers['X-Channel-ID'] = channelId;
                         }
-                        
+
                         const response = await fetch(`${endpoint.replace('/v1', '')}/shapes/public/${username}`, {
                             method: 'GET',
                             headers
@@ -1680,7 +1832,7 @@ export const App = () => {
                         const newOptions = { ...options, streaming: newValue };
                         setOptions(newOptions);
                         await saveOptions(newOptions);
-                        
+
                         const updateMessage: Message = {
                             type: 'system',
                             content: `${chalk.cyan('streaming')} set to: ${chalk.blue(newValue.toString())}`
@@ -1710,7 +1862,7 @@ export const App = () => {
                     const getServerStatus = (type: 'prod' | 'local' | 'debugger' | 'custom', available: boolean) => {
                         const name = getServerDisplayName(type, type === 'custom' ? customServerUrl : undefined);
                         const isSelected = serverType === type;
-                        
+
                         if (isSelected) return chalk.green(`${name} (current)`);
                         if (type === 'prod') return chalk.white(name);
                         if (available) return chalk.white(name);

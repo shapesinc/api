@@ -341,6 +341,7 @@ export const MessageList = ({ messages, shapeName }: MessageListProps) => {
                             message.type === 'tool' ? `Tool (${message.display_name || 'unknown'}):` :
                                 message.type === 'error' ? 'Error:' :
                                     getAssistantLabel(message.display_name)}
+                    {message.streaming && <Text color="yellow"> ⚡</Text>}
                 </Text>
                 <Box marginLeft={2}>
                     {message.type === 'error' ? (
