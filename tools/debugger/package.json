@@ -32,7 +32,8 @@
         "lint": "eslint . --report-unused-disable-directives --no-error-on-unmatched-pattern",
         "lint:fix": "npm run lint -- --fix",
         "typecheck": "tsc -p tsconfig.app.json --noEmit",
-        "build": "tsc -b && tsc -p tsconfig.app.json && tsc-alias -p tsconfig.app.json"
+        "build": "tsc -b && tsc -p tsconfig.app.json && tsc-alias -p tsconfig.app.json",
+        "postbuild": "chmod +x dist/main.js"
     },
     "dependencies": {
         "chalk": "^5.4.1"
