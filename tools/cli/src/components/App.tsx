@@ -1614,9 +1614,13 @@ export const App = () => {
 
                 if (!optionName) {
                     // List all options
+                    const optionsContent = `Current options:
+
+↳ ${chalk.cyan('streaming')}: ${chalk.blue(options.streaming.toString())} ${chalk.gray('(boolean - enables streaming responses)')}`;
+
                     const optionsMessage: Message = {
                         type: 'system',
-                        content: `Current options:\nstreaming: ${options.streaming} (boolean - enables streaming responses)`
+                        content: optionsContent
                     };
                     setMessages(prev => [...prev, optionsMessage]);
                 } else if (optionName === 'streaming') {
@@ -1624,7 +1628,7 @@ export const App = () => {
                         // Show current value
                         const valueMessage: Message = {
                             type: 'system',
-                            content: `streaming: ${options.streaming}`
+                            content: `${chalk.cyan('streaming')}: ${chalk.blue(options.streaming.toString())}`
                         };
                         setMessages(prev => [...prev, valueMessage]);
                     } else {
@@ -1636,7 +1640,7 @@ export const App = () => {
                         
                         const updateMessage: Message = {
                             type: 'system',
-                            content: `streaming set to: ${newValue}`
+                            content: `${chalk.cyan('streaming')} set to: ${chalk.blue(newValue.toString())}`
                         };
                         setMessages(prev => [...prev, updateMessage]);
                     }
