@@ -81,11 +81,14 @@ npm install
 npm run build
 ```
 
-4. Set up environment variables:
+4. Set up environment variables (or put these in your `.env` file without the `export`):
 ```bash
 export SHAPESINC_API_KEY="your-api-key"
 export SHAPESINC_APP_ID="your-app-id"  
-export SHAPESINC_SHAPE_USERNAME="your-username"
+export SHAPESINC_SHAPE_USERNAME="your-shape-vanity-url"
+export SHAPES_API_URL="https://api.shapes.inc/v1"
+export SHAPES_AUTH_URL="https://api.shapes.inc/auth"
+export SHAPES_SITE_URL="https://shapes.inc"
 ```
 
 ## Global Installation
