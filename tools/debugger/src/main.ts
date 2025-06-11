@@ -165,9 +165,10 @@ function prettyPrintRequest(req: http.IncomingMessage, bodyBuf: Buffer): void {
  */
 function isStreamingResponse(res: http.IncomingMessage): boolean {
   const contentType = res.headers['content-type'] || '';
-  return contentType.includes('text/event-stream') ||
-         contentType.includes('application/x-ndjson') ||
-         res.headers['transfer-encoding'] === 'chunked';
+
+  // Chunked transfer encoding alone doesn't always indicate a proper stream
+  return contentType.includes('text/event-stream') && res.headers['transfer-encoding'] === 'chunked' ||
+    contentType.includes('application/x-ndjson') && res.headers['transfer-encoding'] === 'chunked';
 }
 
 /**
