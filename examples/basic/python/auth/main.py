@@ -39,19 +39,14 @@ async def run():
         shape_app_id = os.getenv("SHAPESINC_APP_ID")
         shape_username = os.getenv("SHAPESINC_SHAPE_USERNAME")
 
-        # Check for SHAPESINC_API_KEY in .env
         if not shape_api_key:
             raise ValueError("SHAPESINC_API_KEY not found in .env")
 
-        # Check for SHAPESINC_APP_ID in .env
         if not shape_app_id:
-            # Default app ID for Euclidian - the Shapes API testing app
-            shape_app_id = "f6263f80-2242-428d-acd4-10e1feec44ee"
+            raise ValueError("SHAPESINC_APP_ID not found in .env")
 
-        # Check for SHAPESINC_SHAPE_USERNAME in .env
         if not shape_username:
-            # Default shape username for Shape Robot - the Shapes API developer shape
-            shape_username = "shaperobot"
+            raise ValueError("SHAPESINC_SHAPE_USERNAME not found in .env")
 
         
         print(f"{Fore.MAGENTA}→ Model   :{Style.RESET_ALL} shapesinc/{shape_username}")
@@ -64,11 +59,15 @@ async def run():
           shape_username,
           shape_app_id,
         )
-        
-        # Setup extra headers for the API request
 
         # User parameter
         user = ShapeUser(args.user_id)
+        # Authorise user:
+        url, authorise = user.auth(shape)
+        print(f"{Fore.MAGENTA}→ Authorization URL :{Style.RESET_ALL} {url}")
+        print()
+        code = input("Enter the code: ")
+        await authorise(code)
         # Channel parameter
         # Identifies the specific channel or conversation context for this message.
         # If not provided, the shape will think everything is coming from a big unified channel
