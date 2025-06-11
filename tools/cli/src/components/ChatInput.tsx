@@ -78,11 +78,11 @@ export const ChatInput = ({ onSend, images, enabledToolsCount, shapeName, authSt
                 break;
             case 'local':
                 displayUrl = 'local';
-                color = 'yellow';
+                color = 'blueBright';
                 break;
             case 'debugger':
                 displayUrl = 'debugger';
-                color = 'cyan';
+                color = 'yellow';
                 break;
             case 'custom':
                 displayUrl = endpoint.replace(/^https?:\/\//, '').replace(/\/v1$/, '');
@@ -93,7 +93,15 @@ export const ChatInput = ({ onSend, images, enabledToolsCount, shapeName, authSt
                     // Fallback to old logic if serverType not provided
                     const isProduction = endpoint.includes('api.shapes.inc');
                     displayUrl = isProduction ? 'prod' : endpoint.replace(/^https?:\/\//, '');
-                    color = isProduction ? 'green' : 'yellow';
+                    if (isProduction) {
+                        color = 'green';
+                    } else if (endpoint.includes('localhost:8080')) {
+                        color = 'blueBright';
+                    } else if (endpoint.includes('localhost:8090')) {
+                        color = 'yellow';
+                    } else {
+                        color = 'magenta'; // custom
+                    }
                 }
         }
 
