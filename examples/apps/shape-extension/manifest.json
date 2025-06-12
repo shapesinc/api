@@ -1,0 +1,32 @@
+{
+  "manifest_version": 3,
+  "name": "ShapeKick",
+  "version": "1.0.0",
+  "description": "Your snarky AI companion that watches and judges your Browse habits",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "scripting",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://*/*",
+    "http://*/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "css": ["overlay.css"],
+      "run_at": "document_end"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "ShapeKick Settings"
+  },
+  "options_page": "popup.html"
+}

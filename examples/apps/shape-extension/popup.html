@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shape Sidekick Settings</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            width: 400px;
+            min-height: 500px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            opacity: 0.8;
+            font-size: 14px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            font-size: 14px;
+        }
+
+        input, select, textarea {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.9);
+            color: #333;
+            font-size: 14px;
+            transition: all 0.2s ease;
+        }
+
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            background: white;
+            box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.3);
+        }
+
+        .toggle-group {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .toggle {
+            position: relative;
+            width: 50px;
+            height: 26px;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 13px;
+            cursor: pointer;
+            transition: background 0.3s ease;
+        }
+
+        .toggle.active {
+            background: rgba(255, 255, 255, 0.8);
+        }
+
+        .toggle::after {
+            content: '';
+            position: absolute;
+            width: 22px;
+            height: 22px;
+            background: white;
+            border-radius: 50%;
+            top: 2px;
+            left: 2px;
+            transition: transform 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .toggle.active::after {
+            transform: translateX(24px);
+        }
+
+        .slider-group {
+            margin-top: 8px;
+        }
+
+        .slider {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: rgba(255, 255, 255, 0.3);
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: white;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .slider::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: white;
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .slider-value {
+            font-size: 12px;
+            opacity: 0.8;
+            margin-top: 4px;
+        }
+
+        .buttons {
+            display: flex;
+            gap: 12px;
+            margin-top: 30px;
+        }
+
+        button {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 14px;
+        }
+
+        .btn-primary {
+            background: white;
+            color: #667eea;
+        }
+
+        .btn-primary:hover {
+            background: #f8f9ff;
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .status {
+            text-align: center;
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 13px;
+            display: none;
+        }
+
+        .status.success {
+            background: rgba(46, 204, 113, 0.2);
+            border: 1px solid rgba(46, 204, 113, 0.3);
+        }
+
+        .status.error {
+            background: rgba(231, 76, 60, 0.2);
+            border: 1px solid rgba(231, 76, 60, 0.3);
+        }
+
+        .api-help {
+            font-size: 12px;
+            opacity: 0.8;
+            margin-top: 6px;
+        }
+
+        .api-help a {
+            color: rgba(255, 255, 255, 0.9);
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🤖 Shape Sidekick</h1>
+        <p>Your snarky AI Browse companion</p>
+    </div>
+
+    <form id="settingsForm">
+        <div class="form-group">
+            <div class="toggle-group">
+                <label>Enable Shape Sidekick</label>
+                <div class="toggle" id="enabledToggle"></div>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="apiKey">Shapes API Key</label>
+            <input type="password" id="apiKey" placeholder="Enter your Shapes API key">
+            <div class="api-help">
+                Get your API key at <a href="https://shapes.inc/developer" target="_blank" rel="noopener noreferrer">shapes.inc/developer</a>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="shapeUsername">Shape Username</label>
+            <input type="text" id="shapeUsername" placeholder="shaperobot">
+        </div>
+
+        <div class="form-group">
+            <label for="personality">Personality Style</label>
+            <select id="personality">
+                <option value="snarky">Snarky & Sarcastic</option>
+                <option value="wholesome">Wholesome & Encouraging</option>
+                <option value="edgy">Edgy & Rebellious</option>
+                <option value="shy">Shy & Anxious</option>
+                <option value="existential">Existential & Deep</option>
+                <option value="chaotic">Chaotic Neutral</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <div class="toggle-group">
+                <label>Voice Comments</label>
+                <div class="toggle" id="voiceToggle"></div>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>Comment Frequency</label>
+            <div class="slider-group">
+                <input type="range" id="commentFrequency" class="slider" min="10" max="120" value="30">
+                <div class="slider-value" id="frequencyValue">Every 30 seconds</div>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>Idle Detection</label>
+            <div class="slider-group">
+                <input type="range" id="idleThreshold" class="slider" min="60" max="1800" value="300">
+                <div class="slider-value" id="idleValue">After 5 minutes</div>
+            </div>
+        </div>
+
+        <div class="buttons">
+            <button type="submit" class="btn-primary">Save Settings</button>
+            <button type="button" id="testBtn" class="btn-secondary">Test Shape</button>
+        </div>
+
+        <div class="status" id="status"></div>
+    </form>
+
+    <script src="popup.js"></script>
+</body>
+</html>
