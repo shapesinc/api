@@ -472,6 +472,7 @@ export const App = () => {
     useEffect(() => {
         const fetchAppName = async () => {
             if (!appId) {
+                setAppName('');
                 return;
             }
 
@@ -1565,11 +1566,22 @@ export const App = () => {
                 try {
                     const appIdValue = args[0]?.trim();
 
-                    if (appIdValue) {
+                    if (appIdValue === 'default') {
+                        // Reset to default app ID from config
+                        const discoveredConfig = await initConfig();
+                        await saveAppId(discoveredConfig.appId);
+                        setAppId(discoveredConfig.appId);
+
+                        const defaultMessage: Message = {
+                            type: 'system',
+                            content: `Application ID set to default: ${discoveredConfig.appId}`
+                        };
+                        setMessages(prev => [...prev, defaultMessage]);
+                    } else if (appIdValue) {
                         // Validate UUID format
                         const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
                         if (!uuidRegex.test(appIdValue)) {
-                            throw new Error('Invalid UUID format. Please provide a valid application ID.');
+                            throw new Error('Invalid UUID format. Please provide a valid application ID or "default".');
                         }
 
                         await saveAppId(appIdValue);
@@ -1938,7 +1950,7 @@ export const App = () => {
 ↳ ${chalk.green('/key')} ${chalk.green('[api-key]')} - Set API key (empty to clear and prompt for new one)
 ↳ ${chalk.green('/user')} ${chalk.green('[id]')} - Set user ID (empty to clear)
 ↳ ${chalk.green('/channel')} ${chalk.green('[id]')} - Set channel ID (empty to clear)
-↳ ${chalk.green('/application')} ${chalk.green('[id]')} - Set application ID (empty to clear)
+↳ ${chalk.green('/application')} ${chalk.green('[id|default]')} - Set application ID (empty to clear, "default" to reset)
 ↳ ${chalk.green('/shape')} ${chalk.green('[username]')} - Change current shape (prompts for username if not provided)
 ↳ ${chalk.green('/info')} ${chalk.green('[shape|application]')} - Show shape or application info (defaults to current shape)
 ↳ ${chalk.green('/memories')} ${chalk.green('[page]')} - Show conversation summaries for current shape (page 1 if not specified)
@@ -1977,7 +1989,20 @@ Configuration files are stored in: ${chalk.cyan('~/.shapes-cli/')}`;
 
     const handleLogin = async () => {
         try {
-            const authUrl = await getAuthUrl();
+            const savedAppId = await loadAppId();
+            const effectiveAppId = savedAppId !== null ? savedAppId : config.appId;
+            
+            // Enforce application ID requirement for login
+            if (!effectiveAppId) {
+                const errorMessage: Message = {
+                    type: 'system',
+                    content: '❌ Login requires an application ID. Please set one using /application <app-id> before logging in.'
+                };
+                setMessages(prev => [...prev, errorMessage]);
+                return;
+            }
+            
+            const authUrl = await getAuthUrl(effectiveAppId);
 
             const loginMessage: Message = {
                 type: 'system',
@@ -2001,7 +2026,9 @@ Configuration files are stored in: ${chalk.cyan('~/.shapes-cli/')}`;
 
     const handleAuthCode = async (code: string) => {
         try {
-            const token = await authenticate(code);
+            const savedAppId = await loadAppId();
+            const effectiveAppId = savedAppId !== null ? savedAppId : config.appId;
+            const token = await authenticate(code, effectiveAppId || undefined);
             await saveToken(token);
 
             // Update auth status
