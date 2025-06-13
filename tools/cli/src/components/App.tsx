@@ -9,6 +9,7 @@ import { ChatInput } from './ChatInput.js';
 import { MessageList } from './MessageList.js';
 import { Banner } from './Banner.js';
 import { renderError } from '../utils/rendering.js';
+import { getCurrentApiKey, buildApiHeaders, buildOpenAIHeaders } from '../utils/headers.js';
 import chalk from 'chalk';
 import { config, initConfig, resetDiscoveryCache } from '../config.js';
 import net from 'node:net';
@@ -322,6 +323,8 @@ export const App = () => {
     const [appId, setAppId] = useState<string>('');
     const [appName, setAppName] = useState<string>('');
     const [apiKey, setApiKey] = useState<string>('');
+    const [currentClientApiKey, setCurrentClientApiKey] = useState<string>('');
+    const [currentClientBaseURL, setCurrentClientBaseURL] = useState<string>('');
     const [cachedShapeId, setCachedShapeId] = useState<string>('');
     const [currentShapeUsername, setCurrentShapeUsername] = useState<string>('');
     const [options, setOptions] = useState<AppOptions>(DEFAULT_OPTIONS);
@@ -359,8 +362,8 @@ export const App = () => {
                     setApiKey(discoveredConfig.apiKey);
                 }
 
-                // Calculate current API key for client creation
-                const currentApiKey = apiKey || savedApiKey || discoveredConfig.apiKey;
+                // Calculate current API key for client creation using consistent logic
+                const currentApiKey = getCurrentApiKey(apiKey, savedApiKey, discoveredConfig.apiKey);
 
                 // Show system message if no API key and no auth token
                 if (!currentApiKey && !token) {
@@ -375,42 +378,22 @@ export const App = () => {
                 const effectiveAppId = savedAppId !== null ? savedAppId : discoveredConfig.appId;
                 setAppId(effectiveAppId);
 
-                // Create client with API key or user authentication (currentApiKey already calculated above)
-
-                // Only create client if we have an API key or token
-                if (currentApiKey || token) {
-                    const defaultHeaders: Record<string, string> = {};
-
-                    // Add app ID header if set
-                    if (effectiveAppId) {
-                        defaultHeaders['X-App-ID'] = effectiveAppId;
-                    }
-
-                    // Add user auth header if available
-                    if (token) {
-                        defaultHeaders['X-User-Auth'] = token;
-                    }
-
-                    // Add user ID header if set
-                    if (savedUserId) {
-                        defaultHeaders['X-User-ID'] = savedUserId;
-                    }
-
-                    // Add channel ID header if set
-                    if (savedChannelId) {
-                        defaultHeaders['X-Channel-ID'] = savedChannelId;
-                    }
-
+                // Only create/recreate client if API key or baseURL has changed or client doesn't exist
+                if ((currentApiKey || token) && (currentApiKey !== currentClientApiKey || discoveredConfig.apiUrl !== currentClientBaseURL || !client)) {
                     const clientConfig: ClientOptions = {
                         apiKey: currentApiKey,
                         baseURL: discoveredConfig.apiUrl,
-                        defaultHeaders,
+                        // Remove defaultHeaders - we'll use per-request headers instead
                     };
 
                     const shapesClient = new OpenAI(clientConfig);
                     setClient(shapesClient);
-                } else {
+                    setCurrentClientApiKey(currentApiKey);
+                    setCurrentClientBaseURL(discoveredConfig.apiUrl);
+                } else if (!currentApiKey && !token) {
                     setClient(null);
+                    setCurrentClientApiKey('');
+                    setCurrentClientBaseURL('');
                 }
 
                 // Set shape name, auth status, and endpoint
@@ -483,38 +466,28 @@ export const App = () => {
         };
 
         initialize();
-    }, [apiKey]);
+    }, [apiKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Fetch app name when appId changes
     useEffect(() => {
         const fetchAppName = async () => {
             if (!appId) {
+                setAppName('');
                 return;
             }
 
             try {
                 const token = await getToken();
-                const headers: Record<string, string> = {
-                    'X-App-ID': appId
-                };
-
-                if (config.apiKey || apiKey) {
-                    headers.Authorization = `Bearer ${apiKey || config.apiKey}`;
-                }
-
-                if (token) {
-                    headers['X-User-Auth'] = token;
-                }
-
-                // Add user ID if set
-                if (userId) {
-                    headers['X-User-ID'] = userId;
-                }
-
-                // Add channel ID if set
-                if (channelId) {
-                    headers['X-Channel-ID'] = channelId;
-                }
+                const savedApiKey = await loadApiKey();
+                const currentApiKey = getCurrentApiKey(apiKey, savedApiKey, config.apiKey);
+                
+                const headers = buildApiHeaders({
+                    effectiveAppId: appId ?? undefined,
+                    token,
+                    userId,
+                    channelId,
+                    apiKey: currentApiKey
+                });
 
                 const response = await fetch(`${endpoint.replace('/v1', '')}/auth/app_info`, {
                     method: 'GET',
@@ -536,6 +509,40 @@ export const App = () => {
 
         fetchAppName();
     }, [appId, endpoint, apiKey, userId, channelId]);
+
+    // Recreate OpenAI client when endpoint changes (from /server command)
+    useEffect(() => {
+        const recreateClient = async () => {
+            if (!endpoint) return;
+            
+            try {
+                const token = await getToken();
+                const savedApiKey = await loadApiKey();
+                const currentApiKey = getCurrentApiKey(apiKey, savedApiKey, config.apiKey);
+                
+                // Only recreate client if we have auth and the endpoint is different
+                if ((currentApiKey || token) && endpoint !== currentClientBaseURL) {
+                    const clientConfig: ClientOptions = {
+                        apiKey: currentApiKey,
+                        baseURL: endpoint,
+                    };
+
+                    const shapesClient = new OpenAI(clientConfig);
+                    setClient(shapesClient);
+                    setCurrentClientApiKey(currentApiKey);
+                    setCurrentClientBaseURL(endpoint);
+                } else if (!currentApiKey && !token) {
+                    setClient(null);
+                    setCurrentClientApiKey('');
+                    setCurrentClientBaseURL('');
+                }
+            } catch (err) {
+                console.warn('Failed to recreate client on endpoint change:', err);
+            }
+        };
+
+        recreateClient();
+    }, [endpoint]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const getUserDisplayName = async () => {
         const token = await getToken();
@@ -691,6 +698,10 @@ export const App = () => {
             ];
 
             // Make the next API call (always non-streaming for tool follow-ups)
+            const savedAppId = await loadAppId();
+            const token = await getToken();
+            const effectiveAppId = savedAppId !== null ? savedAppId : (await initConfig()).appId;
+            
             const rawNextResponse = await client.chat.completions.create({
                 model: shapeName,
                 stream: false, // Always non-streaming for tool follow-ups
@@ -703,6 +714,13 @@ export const App = () => {
                         parameters: tool.parameters,
                     },
                 })),
+            }, {
+                headers: buildOpenAIHeaders({
+                    effectiveAppId: effectiveAppId ?? undefined,
+                    token,
+                    userId,
+                    channelId
+                })
             });
 
             // Parse response if it's a string (same fix as main handler)
@@ -741,10 +759,21 @@ export const App = () => {
         if (!client) {
             throw new Error('OpenAI client not initialized');
         }
-        // Create the streaming request
+        // Create the streaming request with consistent headers
+        const savedAppId = await loadAppId();
+        const token = await getToken();
+        const effectiveAppId = savedAppId !== null ? savedAppId : (await initConfig()).appId;
+        
         const stream = await client.chat.completions.create({
             ...request,
             stream: true
+        }, {
+            headers: buildOpenAIHeaders({
+                effectiveAppId: effectiveAppId ?? undefined,
+                token,
+                userId,
+                channelId
+            })
         }) as AsyncIterable<OpenAI.ChatCompletionChunk>;
 
         // Add a streaming message placeholder to the UI
@@ -845,10 +874,21 @@ export const App = () => {
         if (!client) {
             throw new Error('OpenAI client not initialized');
         }
-        // Create the non-streaming request
+        // Create the non-streaming request with consistent headers
+        const savedAppId = await loadAppId();
+        const token = await getToken();
+        const effectiveAppId = savedAppId !== null ? savedAppId : (await initConfig()).appId;
+        
         const rawResponse = await client.chat.completions.create({
             ...request,
             stream: false
+        }, {
+            headers: buildOpenAIHeaders({
+                effectiveAppId: effectiveAppId ?? undefined,
+                token,
+                userId,
+                channelId
+            })
         });
 
         // Parse response if it's a string
@@ -1042,34 +1082,19 @@ export const App = () => {
             }
 
             // Validate the new shape by fetching its info (don't rely on cache)
-            const headers: Record<string, string> = {};
             const token = await getToken();
-
-            // Add API key if available
-            if (config.apiKey || apiKey) {
-                headers.Authorization = `Bearer ${apiKey || config.apiKey}`;
-            }
-
-            // Add auth token if available
-            if (token) {
-                headers['X-User-Auth'] = token;
-            }
-
-            // Add app ID if available
-            const currentAppId = appId || config.appId;
-            if (currentAppId) {
-                headers['X-App-ID'] = currentAppId;
-            }
-
-            // Add user ID if set
-            if (userId) {
-                headers['X-User-ID'] = userId;
-            }
-
-            // Add channel ID if set
-            if (channelId) {
-                headers['X-Channel-ID'] = channelId;
-            }
+            const savedAppId = await loadAppId();
+            const savedApiKey = await loadApiKey();
+            const effectiveAppId = savedAppId !== null ? savedAppId : config.appId;
+            const currentApiKey = getCurrentApiKey(apiKey, savedApiKey, config.apiKey);
+            
+            const headers = buildApiHeaders({
+                effectiveAppId: effectiveAppId ?? undefined,
+                token,
+                userId,
+                channelId,
+                apiKey: currentApiKey
+            });
 
             const response = await fetch(`${endpoint.replace('/v1', '')}/shapes/public/${newUsername}`, {
                 method: 'GET',
@@ -1354,33 +1379,23 @@ export const App = () => {
                 if (infoType === 'application') {
                     // Show application info
                     try {
-                        const currentAppId = appId || config.appId;
-                        if (!currentAppId) {
+                        const savedAppId = await loadAppId();
+                        const effectiveAppId = savedAppId !== null ? savedAppId : config.appId;
+                        if (!effectiveAppId) {
                             throw new Error('No application ID configured');
                         }
 
                         const token = await getToken();
-                        const headers: Record<string, string> = {
-                            'X-App-ID': currentAppId
-                        };
-
-                        if (config.apiKey || apiKey) {
-                            headers.Authorization = `Bearer ${apiKey || config.apiKey}`;
-                        }
-
-                        if (token) {
-                            headers['X-User-Auth'] = token;
-                        }
-
-                        // Add user ID if set
-                        if (userId) {
-                            headers['X-User-ID'] = userId;
-                        }
-
-                        // Add channel ID if set
-                        if (channelId) {
-                            headers['X-Channel-ID'] = channelId;
-                        }
+                        const savedApiKey = await loadApiKey();
+                        const currentApiKey = getCurrentApiKey(apiKey, savedApiKey, config.apiKey);
+                        
+                        const headers = buildApiHeaders({
+                            effectiveAppId,
+                            token,
+                            userId,
+                            channelId,
+                            apiKey: currentApiKey
+                        });
 
                         const response = await fetch(`${endpoint.replace('/v1', '')}/auth/app_info`, {
                             method: 'GET',
@@ -1431,33 +1446,18 @@ export const App = () => {
 
                     // Prepare headers
                     const token = await getToken();
-                    const headers: Record<string, string> = {};
-
-                    // Add API key if available
-                    if (config.apiKey || apiKey) {
-                        headers.Authorization = `Bearer ${apiKey || config.apiKey}`;
-                    }
-
-                    // Add auth token if available
-                    if (token) {
-                        headers['X-User-Auth'] = token;
-                    }
-
-                    // Add app ID if available
-                    const currentAppId = appId || config.appId;
-                    if (currentAppId) {
-                        headers['X-App-ID'] = currentAppId;
-                    }
-
-                    // Add user ID if set
-                    if (userId) {
-                        headers['X-User-ID'] = userId;
-                    }
-
-                    // Add channel ID if set
-                    if (channelId) {
-                        headers['X-Channel-ID'] = channelId;
-                    }
+                    const savedAppId = await loadAppId();
+                    const savedApiKey = await loadApiKey();
+                    const effectiveAppId = savedAppId !== null ? savedAppId : config.appId;
+                    const currentApiKey = getCurrentApiKey(apiKey, savedApiKey, config.apiKey);
+                    
+                    const headers = buildApiHeaders({
+                        effectiveAppId,
+                        token,
+                        userId,
+                        channelId,
+                        apiKey: currentApiKey
+                    });
 
                     const response = await fetch(`${endpoint.replace('/v1', '')}/shapes/public/${username}`, {
                         method: 'GET',
@@ -1566,11 +1566,22 @@ export const App = () => {
                 try {
                     const appIdValue = args[0]?.trim();
 
-                    if (appIdValue) {
+                    if (appIdValue === 'default') {
+                        // Reset to default app ID from config
+                        const discoveredConfig = await initConfig();
+                        await saveAppId(discoveredConfig.appId);
+                        setAppId(discoveredConfig.appId);
+
+                        const defaultMessage: Message = {
+                            type: 'system',
+                            content: `Application ID set to default: ${discoveredConfig.appId}`
+                        };
+                        setMessages(prev => [...prev, defaultMessage]);
+                    } else if (appIdValue) {
                         // Validate UUID format
                         const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
                         if (!uuidRegex.test(appIdValue)) {
-                            throw new Error('Invalid UUID format. Please provide a valid application ID.');
+                            throw new Error('Invalid UUID format. Please provide a valid application ID or "default".');
                         }
 
                         await saveAppId(appIdValue);
@@ -1620,33 +1631,18 @@ export const App = () => {
 
                         // Prepare headers
                         const token = await getToken();
-                        const headers: Record<string, string> = {};
-
-                        // Add API key if available
-                        if (config.apiKey || apiKey) {
-                            headers.Authorization = `Bearer ${apiKey || config.apiKey}`;
-                        }
-
-                        // Add auth token if available
-                        if (token) {
-                            headers['X-User-Auth'] = token;
-                        }
-
-                        // Add app ID if available
-                        const currentAppId = appId || config.appId;
-                        if (currentAppId) {
-                            headers['X-App-ID'] = currentAppId;
-                        }
-
-                        // Add user ID if set
-                        if (userId) {
-                            headers['X-User-ID'] = userId;
-                        }
-
-                        // Add channel ID if set
-                        if (channelId) {
-                            headers['X-Channel-ID'] = channelId;
-                        }
+                        const savedAppId = await loadAppId();
+                        const savedApiKey = await loadApiKey();
+                        const effectiveAppId = savedAppId !== null ? savedAppId : config.appId;
+                        const currentApiKey = getCurrentApiKey(apiKey, savedApiKey, config.apiKey);
+                        
+                        const headers = buildApiHeaders({
+                            effectiveAppId,
+                            token,
+                            userId,
+                            channelId,
+                            apiKey: currentApiKey
+                        });
 
                         const response = await fetch(`${endpoint.replace('/v1', '')}/shapes/public/${username}`, {
                             method: 'GET',
@@ -1671,35 +1667,20 @@ export const App = () => {
                         throw new Error('Could not determine shape ID');
                     }
 
-                    // Prepare headers
+                    // Prepare headers for memories fetch
                     const token = await getToken();
-                    const headers: Record<string, string> = {};
-
-                    // Add API key if available
-                    if (config.apiKey || apiKey) {
-                        headers.Authorization = `Bearer ${apiKey || config.apiKey}`;
-                    }
-
-                    // Add auth token if available
-                    if (token) {
-                        headers['X-User-Auth'] = token;
-                    }
-
-                    // Add app ID if available
-                    const currentAppId = appId || config.appId;
-                    if (currentAppId) {
-                        headers['X-App-ID'] = currentAppId;
-                    }
-
-                    // Add user ID if set
-                    if (userId) {
-                        headers['X-User-ID'] = userId;
-                    }
-
-                    // Add channel ID if set
-                    if (channelId) {
-                        headers['X-Channel-ID'] = channelId;
-                    }
+                    const savedAppId = await loadAppId();
+                    const savedApiKey = await loadApiKey();
+                    const effectiveAppId = savedAppId !== null ? savedAppId : config.appId;
+                    const currentApiKey = getCurrentApiKey(apiKey, savedApiKey, config.apiKey);
+                    
+                    const headers = buildApiHeaders({
+                        effectiveAppId,
+                        token,
+                        userId,
+                        channelId,
+                        apiKey: currentApiKey
+                    });
 
                     // Fetch memories from /summaries/shapes/{shape_id} with pagination
                     const url = new URL(`${endpoint.replace('/v1', '')}/summaries/shapes/${shapeId}`);
@@ -1969,7 +1950,7 @@ export const App = () => {
 ↳ ${chalk.green('/key')} ${chalk.green('[api-key]')} - Set API key (empty to clear and prompt for new one)
 ↳ ${chalk.green('/user')} ${chalk.green('[id]')} - Set user ID (empty to clear)
 ↳ ${chalk.green('/channel')} ${chalk.green('[id]')} - Set channel ID (empty to clear)
-↳ ${chalk.green('/application')} ${chalk.green('[id]')} - Set application ID (empty to clear)
+↳ ${chalk.green('/application')} ${chalk.green('[id|default]')} - Set application ID (empty to clear, "default" to reset)
 ↳ ${chalk.green('/shape')} ${chalk.green('[username]')} - Change current shape (prompts for username if not provided)
 ↳ ${chalk.green('/info')} ${chalk.green('[shape|application]')} - Show shape or application info (defaults to current shape)
 ↳ ${chalk.green('/memories')} ${chalk.green('[page]')} - Show conversation summaries for current shape (page 1 if not specified)
@@ -2008,7 +1989,20 @@ Configuration files are stored in: ${chalk.cyan('~/.shapes-cli/')}`;
 
     const handleLogin = async () => {
         try {
-            const authUrl = await getAuthUrl();
+            const savedAppId = await loadAppId();
+            const effectiveAppId = savedAppId !== null ? savedAppId : config.appId;
+            
+            // Enforce application ID requirement for login
+            if (!effectiveAppId) {
+                const errorMessage: Message = {
+                    type: 'system',
+                    content: '❌ Login requires an application ID. Please set one using /application <app-id> before logging in.'
+                };
+                setMessages(prev => [...prev, errorMessage]);
+                return;
+            }
+            
+            const authUrl = await getAuthUrl(effectiveAppId);
 
             const loginMessage: Message = {
                 type: 'system',
@@ -2032,38 +2026,31 @@ Configuration files are stored in: ${chalk.cyan('~/.shapes-cli/')}`;
 
     const handleAuthCode = async (code: string) => {
         try {
-            const token = await authenticate(code);
+            const savedAppId = await loadAppId();
+            const effectiveAppId = savedAppId !== null ? savedAppId : config.appId;
+            const token = await authenticate(code, effectiveAppId || undefined);
             await saveToken(token);
 
             // Update auth status
             setAuthStatus(`Authenticated (${token.slice(-4)})`);
 
-            // Re-initialize client with new token
+            // Re-initialize client with new token (only if API key changed)
             const discoveredConfig = await initConfig();
+            const currentApiKey = getCurrentApiKey(apiKey, await loadApiKey(), discoveredConfig.apiKey);
+            
+            // Only recreate client if API key or baseURL has changed
+            if (currentApiKey !== currentClientApiKey || discoveredConfig.apiUrl !== currentClientBaseURL || !client) {
+                const clientConfig: ClientOptions = {
+                    apiKey: currentApiKey,
+                    baseURL: discoveredConfig.apiUrl,
+                    // Remove defaultHeaders - we'll use per-request headers instead
+                };
 
-            const defaultHeaders: Record<string, string> = {
-                'X-App-ID': discoveredConfig.appId,
-                'X-User-Auth': token,
-            };
-
-            // Add user ID header if set
-            if (userId) {
-                defaultHeaders['X-User-ID'] = userId;
+                const shapesClient = new OpenAI(clientConfig);
+                setClient(shapesClient);
+                setCurrentClientApiKey(currentApiKey);
+                setCurrentClientBaseURL(discoveredConfig.apiUrl);
             }
-
-            // Add channel ID header if set
-            if (channelId) {
-                defaultHeaders['X-Channel-ID'] = channelId;
-            }
-
-            const clientConfig: ClientOptions = {
-                apiKey: discoveredConfig.apiKey,
-                baseURL: discoveredConfig.apiUrl,
-                defaultHeaders,
-            };
-
-            const shapesClient = new OpenAI(clientConfig);
-            setClient(shapesClient);
 
             const successMessage: Message = {
                 type: 'system',
@@ -2138,35 +2125,29 @@ Configuration files are stored in: ${chalk.cyan('~/.shapes-cli/')}`;
 
             await clearToken();
 
-            // Re-initialize with API key if available
+            // Re-initialize with API key if available (only if API key changed)
             const discoveredConfig = await initConfig();
+            const currentApiKey = getCurrentApiKey(apiKey, await loadApiKey(), discoveredConfig.apiKey);
 
-            if (discoveredConfig.apiKey) {
-                const defaultHeaders: Record<string, string> = {
-                    'X-App-ID': discoveredConfig.appId,
-                };
+            if (currentApiKey) {
+                // Only recreate client if API key or baseURL has changed
+                if (currentApiKey !== currentClientApiKey || discoveredConfig.apiUrl !== currentClientBaseURL || !client) {
+                    const clientConfig: ClientOptions = {
+                        apiKey: currentApiKey,
+                        baseURL: discoveredConfig.apiUrl,
+                        // Remove defaultHeaders - we'll use per-request headers instead
+                    };
 
-                // Add user ID header if set
-                if (userId) {
-                    defaultHeaders['X-User-ID'] = userId;
+                    const shapesClient = new OpenAI(clientConfig);
+                    setClient(shapesClient);
+                    setCurrentClientApiKey(currentApiKey);
+                    setCurrentClientBaseURL(discoveredConfig.apiUrl);
                 }
-
-                // Add channel ID header if set
-                if (channelId) {
-                    defaultHeaders['X-Channel-ID'] = channelId;
-                }
-
-                const clientConfig: ClientOptions = {
-                    apiKey: discoveredConfig.apiKey,
-                    baseURL: discoveredConfig.apiUrl,
-                    defaultHeaders,
-                };
-
-                const shapesClient = new OpenAI(clientConfig);
-                setClient(shapesClient);
-                setAuthStatus(`API Key (${discoveredConfig.apiKey.slice(-4)})`);
+                setAuthStatus(`API Key (${currentApiKey.slice(-4)})`);
             } else {
                 setClient(null);
+                setCurrentClientApiKey('');
+                setCurrentClientBaseURL('');
                 setAuthStatus('No Auth');
             }
 

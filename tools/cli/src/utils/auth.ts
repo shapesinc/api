@@ -30,20 +30,30 @@ export async function clearToken(): Promise<void> {
     }
 }
 
-export async function authenticate(code: string): Promise<string> {
+export async function authenticate(code: string, effectiveAppId?: string): Promise<string> {
     try {
         const discoveredConfig = await initConfig();
-        const response = await axios.post(`${discoveredConfig.authUrl}/nonce`, {
-            app_id: discoveredConfig.appId,
-            code,
-        });
+        const requestBody: { code: string; app_id?: string } = { code };
+        
+        // Only include app_id if user hasn't cleared it (same logic as X-App-ID header)
+        if (effectiveAppId) {
+            requestBody.app_id = effectiveAppId;
+        }
+        
+        const response = await axios.post(`${discoveredConfig.authUrl}/nonce`, requestBody);
         return response.data.auth_token;
     } catch (error) {
         throw new Error(`Authentication failed: ${(error as Error).message}`);
     }
 }
 
-export async function getAuthUrl(): Promise<string> {
+export async function getAuthUrl(effectiveAppId?: string): Promise<string> {
     const discoveredConfig = await initConfig();
-    return `${discoveredConfig.siteUrl}/authorize?app_id=${discoveredConfig.appId}`;
+    
+    // Only include app_id query param if user hasn't cleared it
+    if (effectiveAppId) {
+        return `${discoveredConfig.siteUrl}/authorize?app_id=${effectiveAppId}`;
+    } else {
+        return `${discoveredConfig.siteUrl}/authorize`;
+    }
 }

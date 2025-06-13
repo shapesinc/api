@@ -16,7 +16,17 @@ export const Banner = ({ shapeName, endpoint, appId }: BannerProps) => {
             displayUrl = displayUrl.replace(/\/v1$/, '');
         }
 
-        const color = isProduction ? 'green' : 'yellow';
+        let color: string;
+        if (isProduction) {
+            color = 'green';
+        } else if (endpoint.includes('localhost:8080')) {
+            color = 'blueBright';
+        } else if (endpoint.includes('localhost:8090')) {
+            color = 'yellow';
+        } else {
+            color = 'magenta'; // custom
+        }
+        
         return { displayUrl, color };
     };
 
