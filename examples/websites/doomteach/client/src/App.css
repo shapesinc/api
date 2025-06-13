@@ -1,0 +1,118 @@
+body {
+  margin: 0;
+  font-family: 'Segoe UI', sans-serif;
+  background-color: #000;
+  color: white;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 100px;
+  min-height: 100vh;
+  background: #000;
+}
+
+.title {
+  font-size: 3.5rem;
+  margin-bottom: 0.5rem;
+  color: #fff;
+  font-family: 'Orbitron', 'Segoe UI', sans-serif;
+  letter-spacing: 0.15em;
+  text-shadow: 0 0 16px #00fff7, 0 0 2px #fff;
+}
+
+.subtitle {
+  font-size: 1.1rem;
+  color: rgba(255,255,255,0.7);
+  font-weight: 300;
+  margin-top: -1.5rem;
+  margin-bottom: 2.5rem;
+  letter-spacing: 0.08em;
+  text-align: center;
+  text-shadow: 0 0 8px #00fff7, 0 0 2px #fff;
+}
+
+.prompt-form {
+  display: flex;
+  flex-direction: column;
+  width: 90%;
+  max-width: 600px;
+  background: rgba(30, 30, 40, 0.7);
+  border-radius: 18px;
+  box-shadow: 0 0 24px #00fff7a0;
+  padding: 2rem 1.5rem 1.5rem 1.5rem;
+  border: 1.5px solid #00fff7;
+}
+
+.prompt-form input {
+  padding: 14px;
+  font-size: 1.1rem;
+  border: none;
+  border-radius: 8px;
+  margin-bottom: 14px;
+  background-color: #181c24;
+  color: #fff;
+  outline: none;
+  box-shadow: 0 0 8px #00fff7a0 inset;
+  transition: box-shadow 0.2s;
+}
+
+.prompt-form input:focus {
+  box-shadow: 0 0 16px #00fff7;
+}
+
+.prompt-form button {
+  padding: 14px;
+  font-size: 1.1rem;
+  border: none;
+  border-radius: 8px;
+  background: linear-gradient(90deg, #00fff7 0%, #2979ff 100%);
+  color: #181c24;
+  font-weight: bold;
+  cursor: pointer;
+  box-shadow: 0 0 12px #00fff7a0;
+  letter-spacing: 0.08em;
+  transition: background 0.2s, color 0.2s;
+}
+
+.prompt-form button:hover {
+  background: linear-gradient(90deg, #2979ff 0%, #00fff7 100%);
+  color: #fff;
+}
+
+.response {
+  display: none;
+}
+
+.generating-text {
+  margin-top: 28px;
+  font-size: 1.3rem;
+  color: #00fff7;
+  font-family: 'Share Tech Mono', 'Fira Mono', 'Consolas', monospace;
+  letter-spacing: 0.07em;
+  text-shadow: 0 0 8px #00fff7, 0 0 2px #fff;
+}
+
+.video-generated-text {
+  margin-top: 28px;
+  font-size: 1.2rem;
+  color: #fff;
+  font-family: 'Share Tech Mono', 'Fira Mono', 'Consolas', monospace;
+  letter-spacing: 0.07em;
+  text-shadow: 0 0 8px #00fff7, 0 0 2px #fff;
+}
+
+.video-path {
+  color: #00fff7;
+  font-weight: bold;
+}
+
+.futuristic-glow-text {
+  text-shadow: 0 0 8px #00fff7, 0 0 2px #fff;
+  font-family: 'Share Tech Mono', 'Fira Mono', 'Consolas', monospace;
+  letter-spacing: 0.07em;
+}
+
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Share+Tech+Mono&display=swap');

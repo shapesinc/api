@@ -1,0 +1,13 @@
+# Python requirements for DoomTeach
+openai
+python-dotenv
+requests
+Pillow
+rembg
+duckduckgo-search
+pydub
+fakeyou
+moviepy==1.0.3
+asyncio
+aiolimiter
+faster-whisper
