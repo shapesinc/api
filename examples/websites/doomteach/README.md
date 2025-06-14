@@ -116,7 +116,7 @@ DoomTeach is a Python-based pipeline for generating short, entertaining video re
 
 3. **Generate a Reel:**
 
-    Run the main pipeline with a user prompt:
+    Enter a prompt and click the `Send` button:
 
     ```bash
     "Captain America and Donald Trump talk about AWS"
