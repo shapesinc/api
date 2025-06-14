@@ -1,0 +1,3 @@
+shapesinc
+python-dotenv
+colorama

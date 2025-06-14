@@ -1,0 +1,2 @@
+shapesinc
+python-dotenv
