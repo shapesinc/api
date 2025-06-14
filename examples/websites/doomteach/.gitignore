@@ -1,0 +1,7 @@
+development/
+media/generated/audio/
+.env
+doomteach/generator/pipeline.log
+doomteach/generator/pipeline2.log
+**/node_modules/
+shape-doom/
