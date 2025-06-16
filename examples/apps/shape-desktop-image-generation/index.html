@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Assetor - Shape Image Generator</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+<meta http-equiv="Content-Security-Policy" content="
+  default-src 'self' https://api.shapes.inc;
+  img-src 'self' data: https: blob:;
+  style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com;
+  font-src 'self' https://cdnjs.cloudflare.com;
+  script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com;
+  connect-src 'self' https://api.shapes.inc;
+">
+</head>
+<body>
+  <div class="sidebar">
+    <div class="logo">
+      <i class="fas fa-shapes"></i>
+      <h1>Assetor</h1>
+    </div>
+
+    <div class="nav-section">
+      <h3>Dashboard</h3>
+      <div class="nav-items">
+        <div class="nav-item active" data-page="image-generate">
+          <i class="fas fa-image"></i>
+          <span>Image generate</span>
+        </div>
+        <div class="nav-item" data-page="gallery">
+          <i class="fas fa-photo-video"></i>
+          <span>Gallery</span>
+        </div>
+        <div class="nav-item" data-page="template">
+          <i class="fas fa-layer-group"></i>
+          <span>Template</span>
+        </div>
+        <div class="nav-item" data-page="upload">
+          <i class="fas fa-upload"></i>
+          <span>Upload</span>
+        </div>
+        <div class="nav-item" data-page="ai-tools">
+          <i class="fas fa-cube"></i>
+          <span>AI Tools</span>
+        </div>
+        <div class="nav-item" data-page="settings">
+          <i class="fas fa-cog"></i>
+          <span>Settings</span>
+        </div>
+      </div>
+    </div>
+
+   <div class="upgrade-card">
+  <h3>Premium Features</h3>
+  <p>Unlock advanced models and capabilities</p>
+  <button class="upgrade-btn" onclick="window.open('https://shapes.inc/premium', '_blank')">Upgrade Now</button>
+</div>
+
+    <div class="search-container">
+      <div class="search-box">
+        <i class="fas fa-search"></i>
+        <input type="text" id="shapeSearchInput" placeholder="Search Shape Profiles">
+      </div>
+      <div id="searchResults" class="search-results"></div>
+    </div>
+  </div>
+
+  <div class="main-content">
+    <div class="header">
+      <div class="header-title" id="pageTitle">Image Generation</div>
+      <div class="header-tools">
+        <div class="theme-toggle" id="themeToggle">
+          <i class="fas fa-moon"></i>
+          <span>Dark Mode</span>
+        </div>
+        <button class="tool-btn" id="settingsBtn">
+          <i class="fas fa-cog"></i>
+        </button>
+        <button class="tool-btn" id="helpBtn">
+          <i class="fas fa-question-circle"></i>
+        </button>
+      </div>
+    </div>
+
+    <div class="content">
+      <div class="content-page active" id="image-generate">
+        <div class="card full-width">
+          <div class="card-header">
+            <div class="card-title"><i class="fas fa-robot"></i> AI Image Generation</div>
+            <div class="card-actions">
+              <button class="card-action" id="historyBtn"><i class="fas fa-history"></i></button>
+              <button class="card-action" id="infoBtn"><i class="fas fa-info-circle"></i></button>
+            </div>
+          </div>
+          <div class="prompt-section">
+            <div class="prompt-group">
+              <label for="positivePrompt" class="prompt-label">Positive Prompt</label>
+              <textarea id="positivePrompt" class="prompt-input" placeholder="Describe what you want to generate"></textarea>
+            </div>
+            <div class="prompt-group">
+              <label for="negativePrompt" class="prompt-label">Negative Prompt</label>
+              <textarea id="negativePrompt" class="prompt-input" placeholder="Describe what you want to avoid"></textarea>
+            </div>
+          </div>
+          
+          <div class="params-grid">
+            <div class="param-group">
+              <label for="shapeSelect" class="param-label">Shape</label>
+              <select id="shapeSelect" class="param-select">
+                <option value="tenshi">Tenshi</option>
+                <option value="einstein">Einstein</option>
+                <option value="maverick">Maverick</option>
+              </select>
+            </div>
+            <div class="param-group">
+              <label for="styleSelect" class="param-label">Style</label>
+              <select id="styleSelect" class="param-select">
+                <option value="realistic">Realistic</option>
+                <option value="cartoon">Cartoon</option>
+                <option value="abstract">Abstract</option>
+                <option value="fantasy">Fantasy</option>
+              </select>
+            </div>
+            <div class="param-group">
+              <label for="customStyleInput" class="param-label">Custom Style</label>
+              <input type="text" id="customStyleInput" class="param-input" placeholder="Enter custom style">
+              <button id="addCustomStyleBtn" class="tool-btn" style="width: 100%; margin-top: 5px;">Add Style</button>
+            </div>
+          </div>
+          
+          <button id="generateBtn" class="generate-btn">
+            <i class="fas fa-sparkles"></i> Generate Image
+          </button>
+        </div>
+
+        <div class="card full-width">
+          <div class="card-header">
+            <div class="card-title"><i class="fas fa-image"></i> Generated Image</div>
+            <div class="card-actions">
+              <button class="card-action" id="refreshBtn"><i class="fas fa-sync-alt"></i></button>
+              <button class="card-action" id="downloadBtn"><i class="fas fa-download"></i></button>
+              <button class="card-action" id="describeBtn"><i class="fas fa-comment-alt"></i></button>
+            </div>
+          </div>
+          <div class="image-container" id="imageContainer">
+            <div class="image-placeholder">
+              <i class="fas fa-image"></i>
+              <p>Your generated image will appear here</p>
+            </div>
+            <img src="" alt="Generated Image" class="generated-image" id="generatedImage">
+          </div>
+          <div class="image-info">
+            <span class="image-name"><i class="fas fa-file-image"></i> <span id="imageName">N/A</span></span>
+            <span class="image-size" id="imageSize">N/A</span>
+          </div>
+          <div class="image-actions">
+            <button class="action-btn" id="cropBtn"><i class="fas fa-crop-alt"></i> Crop</button>
+            <button class="action-btn" id="adjustBtn"><i class="fas fa-sliders-h"></i> Adjust</button>
+            <button class="action-btn" id="enhanceBtn"><i class="fas fa-magic"></i> Enhance</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="content-page" id="gallery">
+        <div class="card full-width">
+          <div class="gallery-header">
+            <div class="card-title"><i class="fas fa-photo-video"></i> Your Gallery</div>
+            <div class="gallery-filters">
+              <button class="filter-btn active">All</button>
+              <button class="filter-btn">Generated</button>
+              <button class="filter-btn">Uploaded</button>
+            </div>
+          </div>
+          <div class="gallery-grid" id="galleryGrid">
+          </div>
+        </div>
+      </div>
+
+      <div class="content-page" id="template">
+        <div class="card full-width">
+          <div class="card-title"><i class="fas fa-layer-group"></i> Cropping Templates</div>
+          <p>Select a template to apply to your images.</p>
+          <div class="template-grid">
+            <div class="template-card" data-aspect="1:1">
+              <div class="template-thumb"><i class="fas fa-square"></i></div>
+              <div class="template-info">
+                <div class="template-name">Square (1:1)</div>
+                <div class="template-desc">Perfect for profile pictures</div>
+              </div>
+            </div>
+            <div class="template-card" data-aspect="16:9">
+              <div class="template-thumb"><i class="fas fa-desktop"></i></div>
+              <div class="template-info">
+                <div class="template-name">Widescreen (16:9)</div>
+                <div class="template-desc">Ideal for banners</div>
+              </div>
+            </div>
+            <div class="template-card" data-aspect="4:5">
+              <div class="template-thumb"><i class="fas fa-mobile-alt"></i></div>
+              <div class="template-info">
+                <div class="template-name">Portrait (4:5)</div>
+                <div class="template-desc">Social media posts</div>
+              </div>
+            </div>
+            <div class="template-card" data-aspect="9:16">
+              <div class="template-thumb"><i class="fas fa-arrows-alt-v"></i></div>
+              <div class="template-info">
+                <div class="template-name">Vertical (9:16)</div>
+                <div class="template-desc">Stories and reels</div>
+              </div>
+            </div>
+            <div class="template-card" data-aspect="3:2">
+              <div class="template-thumb"><i class="fas fa-camera"></i></div>
+              <div class="template-info">
+                <div class="template-name">Classic (3:2)</div>
+                <div class="template-desc">Photography prints</div>
+              </div>
+            </div>
+            <div class="template-card" data-aspect="2:3">
+              <div class="template-thumb"><i class="fas fa-portrait"></i></div>
+              <div class="template-info">
+                <div class="template-name">Portrait (2:3)</div>
+                <div class="template-desc">Traditional portraits</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="content-page" id="upload">
+        <div class="card full-width">
+          <div class="card-title"><i class="fas fa-upload"></i> Upload Your Assets</div>
+          <p>Drag and drop your images or click to upload.</p>
+          <div class="upload-area" id="uploadArea">
+            <i class="fas fa-cloud-upload-alt upload-icon"></i>
+            <p>Drag & Drop Files Here or Click to Browse</p>
+            <input type="file" id="actual-upload" accept="image/*" hidden>
+          </div>
+          <div class="upload-preview" id="uploadPreview"></div>
+          <button class="generate-btn" id="confirmUpload">
+            <i class="fas fa-upload"></i> Upload Image
+          </button>
+        </div>
+      </div>
+
+      <div class="content-page" id="ai-tools">
+        <div class="card full-width">
+          <div class="card-title"><i class="fas fa-cube"></i> AI Tools</div>
+          <p>Access a variety of powerful AI-powered tools.</p>
+          <div class="tools-grid">
+            <div class="tool-card" data-tool="describe">
+              <div class="tool-icon"><i class="fas fa-comment-dots"></i></div>
+              <div class="tool-name">Describe Image</div>
+              <div class="tool-desc">Generate text description from image</div>
+            </div>
+            <div class="tool-card" data-tool="variations">
+              <div class="tool-icon"><i class="fas fa-copy"></i></div>
+              <div class="tool-name">Create Variations</div>
+              <div class="tool-desc">Generate similar images</div>
+            </div>
+            <div class="tool-card" data-tool="remove-bg">
+              <div class="tool-icon"><i class="fas fa-cut"></i></div>
+              <div class="tool-name">Remove Background</div>
+              <div class="tool-desc">Effortlessly remove backgrounds</div>
+            </div>
+            <div class="tool-card" data-tool="upscale">
+              <div class="tool-icon"><i class="fas fa-expand-alt"></i></div>
+              <div class="tool-name">Upscale Image</div>
+              <div class="tool-desc">Increase resolution without quality loss</div>
+            </div>
+            <div class="tool-card" data-tool="enhance">
+              <div class="tool-icon"><i class="fas fa-star"></i></div>
+              <div class="tool-name">Enhance Quality</div>
+              <div class="tool-desc">Improve image clarity and quality</div>
+            </div>
+            <div class="tool-card" data-tool="grayscale">
+              <div class="tool-icon"><i class="fas fa-moon"></i></div>
+              <div class="tool-name">Convert to Grayscale</div>
+              <div class="tool-desc">Create black and white images</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="content-page" id="settings">
+        <div class="shapes-api-section">
+          <h2 class="settings-title"><i class="fas fa-cogs"></i> Shapes API Settings</h2>
+          <div class="api-input-group">
+            <label for="shapesApiKey" class="api-label">API Key</label>
+            <input type="password" id="shapesApiKey" class="api-input" placeholder="Enter your Shapes API Key">
+            <p class="api-info">You can find your API key in your Shapes account dashboard.</p>
+          </div>
+          <div class="api-input-group">
+            <label for="shapesUsername" class="api-label">Username</label>
+            <input type="text" id="shapesUsername" class="api-input" placeholder="Enter your Shapes Username">
+            <p class="api-info">Your Shapes username is used for personalized model access.</p>
+          </div>
+          <div class="api-input-group">
+            <label for="customShapes" class="api-label">Custom Shapes</label>
+            <div class="custom-shapes-container">
+              <input type="text" id="newShapeInput" class="api-input" placeholder="Add new shape username">
+              <button id="addShapeBtn" class="api-test-btn">Add</button>
+            </div>
+            <div id="customShapesList" class="custom-shapes-list"></div>
+          </div>
+          <button id="testApiConnection" class="api-test-btn">
+            <i class="fas fa-link"></i> Test Connection
+          </button>
+          <span id="apiStatus" class="api-status"></span>
+          <pre id="apiResponse" class="api-response"></pre>
+        </div>
+
+        <div class="settings-section">
+          <h2 class="settings-title"><i class="fas fa-palette"></i> Theme Customization</h2>
+          
+          <div class="setting-item">
+            <div>
+              <div class="setting-label">Accent Color</div>
+              <div class="color-picker">
+                <div class="color-option" data-color="#7c3aed" style="background-color: #7c3aed;"></div>
+                <div class="color-option" data-color="#3b82f6" style="background-color: #3b82f6;"></div>
+                <div class="color-option" data-color="#10b981" style="background-color: #10b981;"></div>
+                <div class="color-option" data-color="#f59e0b" style="background-color: #f59e0b;"></div>
+                <div class="color-option" data-color="#ef4444" style="background-color: #ef4444;"></div>
+                <div class="custom-color-picker">
+                  <span>Custom:</span>
+                  <input type="color" id="customColorPicker">
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="setting-item">
+            <div>
+              <div class="setting-label">Font Family</div>
+              <div class="select-wrapper">
+                <select id="fontSelect" class="api-input">
+                  <option value="'Segoe UI', Tahoma, Geneva, Verdana, sans-serif">Default</option>
+                  <option value="'Inter', sans-serif">Inter</option>
+                  <option value="'Roboto', sans-serif">Roboto</option>
+                  <option value="'Poppins', sans-serif">Poppins</option>
+                  <option value="'Montserrat', sans-serif">Montserrat</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          
+          <button id="saveThemeBtn" class="save-btn">
+            <i class="fas fa-save"></i> Save Theme
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="imageEditorModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="editorTitle">Image Editor</h3>
+        <span class="close" id="closeEditor">&times;</span>
+      </div>
+      <div class="modal-body">
+        <div id="editorContainer">
+          <img id="imageToEdit" src="" alt="Image to edit">
+        </div>
+        <div id="adjustmentControls" class="hidden">
+          <div class="transform-tools">
+            <button id="rotateLeftBtn" class="transform-btn" title="Rotate Left">
+              <i class="fas fa-undo"></i>
+            </button>
+            <button id="rotateRightBtn" class="transform-btn" title="Rotate Right">
+              <i class="fas fa-redo"></i>
+            </button>
+            <button id="flipHorizontalBtn" class="transform-btn" title="Flip Horizontal">
+              <i class="fas fa-arrows-alt-h"></i>
+            </button>
+            <button id="flipVerticalBtn" class="transform-btn" title="Flip Vertical">
+              <i class="fas fa-arrows-alt-v"></i>
+            </button>
+          </div>
+          
+          <div class="adjustment-slider">
+            <label for="brightnessSlider">Brightness</label>
+            <input type="range" id="brightnessSlider" min="-100" max="100" value="0">
+            <span id="brightnessValue">0%</span>
+          </div>
+          <div class="adjustment-slider">
+            <label for="contrastSlider">Contrast</label>
+            <input type="range" id="contrastSlider" min="-100" max="100" value="0">
+            <span id="contrastValue">0%</span>
+          </div>
+          <div class="adjustment-slider">
+            <label for="saturationSlider">Saturation</label>
+            <input type="range" id="saturationSlider" min="-100" max="100" value="0">
+            <span id="saturationValue">0%</span>
+          </div>
+          <div class="adjustment-slider">
+            <label for="blurSlider">Blur</label>
+            <input type="range" id="blurSlider" min="0" max="10" value="0" step="0.1">
+            <span id="blurValue">0px</span>
+          </div>
+          <div class="adjustment-slider">
+            <label for="hueSlider">Hue</label>
+            <input type="range" id="hueSlider" min="-180" max="180" value="0">
+            <span id="hueValue">0°</span>
+          </div>
+          <div class="adjustment-slider">
+            <label for="vignetteSlider">Vignette</label>
+            <input type="range" id="vignetteSlider" min="0" max="100" value="0">
+            <span id="vignetteValue">0%</span>
+          </div>
+          <div style="margin-top: 15px; text-align: center;">
+            <button id="resetAdjustments" class="cancel-btn">Reset All Adjustments</button>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="applyEdit" class="generate-btn">Apply Changes</button>
+        <button id="cancelEdit" class="cancel-btn">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="descriptionModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Image Description</h3>
+        <span class="close" id="closeDescription">&times;</span>
+      </div>
+      <div class="modal-body">
+        <div id="descriptionResult"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="cancel-btn" id="closeDescriptionBtn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="imageViewerModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Image Viewer</h3>
+        <span class="close" id="closeViewer">&times;</span>
+      </div>
+      <div class="modal-body">
+        <img id="imageViewer" src="" alt="Full Size Image">
+      </div>
+    </div>
+  </div>
+
+  <div id="imageSelectionModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="selectionModalTitle">Select an Image</h3>
+        <span class="close" id="closeSelection">&times;</span>
+      </div>
+      <div class="modal-body">
+        <div class="gallery-grid" id="selectionGalleryGrid"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="cancel-btn" id="cancelSelection">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="helpModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Assetor Help Center</h3>
+        <span class="close" id="closeHelp">&times;</span>
+      </div>
+      <div class="modal-body">
+        <div class="help-section">
+          <h4><i class="fas fa-image"></i> Image Generation</h4>
+          <ul>
+            <li><strong>Positive Prompt:</strong> Describe what you want to generate (e.g., "a futuristic city at sunset")</li>
+            <li><strong>Negative Prompt:</strong> Specify what to avoid (e.g., "blurry, text, watermark")</li>
+            <li><strong>Shape:</strong> Choose an shape (Tenshi, Einstein, etc.)</li>
+            <li><strong>Style:</strong> Select visual style (Realistic, Cartoon, etc.) or add custom styles</li>
+            <li><strong>Generate:</strong> Creates image based on your prompts</li>
+          </ul>
+        </div>
+        
+        <div class="help-section">
+          <h4><i class="fas fa-crop-alt"></i> Editing Tools</h4>
+          <ul>
+            <li><strong>Crop:</strong> Resize and reframe your image</li>
+            <li><strong>Adjust:</strong> Modify brightness, contrast, saturation, blur, hue, and vignette</li>
+            <li><strong>Enhance:</strong> Automatically improve image quality</li>
+            <li><strong>Rotate/Flip:</strong> Change image orientation in Adjust mode</li>
+          </ul>
+        </div>
+        
+        <div class="help-section">
+          <h4><i class="fas fa-cube"></i> AI Tools</h4>
+          <ul>
+            <li><strong>Describe Image:</strong> Generate text description from any image</li>
+            <li><strong>Create Variations:</strong> Generate similar images using current prompt</li>
+            <li><strong>Remove Background:</strong> Automatically delete image background</li>
+            <li><strong>Upscale Image:</strong> Increase resolution without quality loss</li>
+            <li><strong>Enhance Quality:</strong> Improve clarity and details</li>
+            <li><strong>Grayscale:</strong> Convert to black and white</li>
+          </ul>
+        </div>
+        
+        <div class="help-section">
+          <h4><i class="fas fa-photo-video"></i> Gallery & Workflow</h4>
+          <ul>
+            <li>All generated and uploaded images are saved in Gallery</li>
+            <li>Filter by "Generated" or "Uploaded" images</li>
+            <li>Click any image to view, edit, download or delete</li>
+            <li>Use templates for common aspect ratios (social media, banners, etc.)</li>
+          </ul>
+        </div>
+        
+        <div class="help-section">
+          <h4><i class="fas fa-cog"></i> Settings</h4>
+          <ul>
+            <li><strong>API Settings:</strong> Connect your Shapes API account</li>
+            <li><strong>Custom Shapes:</strong> Add specialized AI models</li>
+            <li><strong>Theme:</strong> Customize accent color and font</li>
+            <li><strong>Dark Mode:</strong> Toggle between light/dark themes</li>
+          </ul>
+        </div>
+        
+        <div class="help-contact">
+          <h4>Need More Help?</h4>
+          <p>Contact support: hi@shapes.inc</p>
+          <p>Documentation: wiki.shapes.inc/</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"></script>
+  <script src="renderer.js"></script>
+</body>
+</html>
