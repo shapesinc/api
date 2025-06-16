@@ -2,6 +2,7 @@
 
 Image generation and editing tool powered by Shapes, Inc.
 
+## download [here](https://github.com/kiyosh11/assetor/releases/tag/shapes)
 ### Features
 - AI-powered image generation with customizable prompts
 - Image editing (crop, adjust, enhance)
