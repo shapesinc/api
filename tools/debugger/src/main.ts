@@ -366,7 +366,7 @@ const server = http.createServer((clientReq, clientRes) => {
         prettyPrintResponseHeaders(proxyRes);
         
         if (shouldCollapse) {
-          console.log(chalk.dim('Body: [collapsed]'));
+          console.log(chalk.bold('Body: ') + chalk.yellow('[collapsed]'));
         } else if (isStreaming) {
           console.log(chalk.bold('Body:'));
         }
