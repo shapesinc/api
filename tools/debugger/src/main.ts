@@ -30,6 +30,24 @@ const finishReasonColors = {
   function_call: chalk.cyan
 };
 
+// URL patterns for collapsed responses (show headers only)
+const collapsedResponsePatterns = [
+  '/users/*'
+];
+
+/**
+ * Check if a URL path matches any collapsed response patterns.
+ */
+function shouldCollapseResponse(urlPath: string): boolean {
+  return collapsedResponsePatterns.some(pattern => {
+    if (pattern.endsWith('/*')) {
+      const prefix = pattern.slice(0, -2);
+      return urlPath.startsWith(prefix);
+    }
+    return urlPath === pattern;
+  });
+}
+
 /**
  * Pretty-print JSON with OpenAI chat syntax highlighting.
  */
@@ -63,13 +81,21 @@ function prettyPrintJson(obj: Record<string, unknown>, { isResponse = false }: {
         console.log(indent + chalk.gray(trimmed));
       }
     } else if (trimmed.startsWith('"content"')) {
-      // highlight only content value
+      // highlight content value (string or array/object)
       const partsContent = trimmed.match(/^("content":\s*)(".*")(,?)$/);
       if (partsContent) {
+        // Simple string content
         const [, keyPart, valuePart, comma] = partsContent;
         console.log(indent + chalk.gray(keyPart) + chalk.white(valuePart) + (comma || ''));
       } else {
-        console.log(indent + chalk.gray(trimmed));
+        // Array or object content - highlight the key part
+        const keyMatch = trimmed.match(/^("content":\s*)(.*)(,?)$/);
+        if (keyMatch) {
+          const [, keyPart, valuePart, comma] = keyMatch;
+          console.log(indent + chalk.gray(keyPart) + chalk.white(valuePart) + (comma || ''));
+        } else {
+          console.log(indent + chalk.gray(trimmed));
+        }
       }
     } else if (trimmed.startsWith('"name"')) {
       // highlight tool/function names
@@ -77,6 +103,24 @@ function prettyPrintJson(obj: Record<string, unknown>, { isResponse = false }: {
       if (partsName) {
         const [, keyPart, valuePart, comma] = partsName;
         console.log(indent + chalk.gray(keyPart) + chalk.yellow(valuePart) + (comma || ''));
+      } else {
+        console.log(indent + chalk.gray(trimmed));
+      }
+    } else if (trimmed.startsWith('"text"')) {
+      // highlight text content in content objects
+      const partsText = trimmed.match(/^("text":\s*)(".*")(,?)$/);
+      if (partsText) {
+        const [, keyPart, valuePart, comma] = partsText;
+        console.log(indent + chalk.gray(keyPart) + chalk.white(valuePart) + (comma || ''));
+      } else {
+        console.log(indent + chalk.gray(trimmed));
+      }
+    } else if (trimmed.startsWith('"image_url"')) {
+      // highlight image_url content in content objects
+      const partsImageUrl = trimmed.match(/^("image_url":\s*)(.*)(,?)$/);
+      if (partsImageUrl) {
+        const [, keyPart, valuePart, comma] = partsImageUrl;
+        console.log(indent + chalk.gray(keyPart) + chalk.cyan(valuePart) + (comma || ''));
       } else {
         console.log(indent + chalk.gray(trimmed));
       }
@@ -277,14 +321,6 @@ function prettyPrintResponseBody(res: http.IncomingMessage, bodyBuf: Buffer): vo
   }
 }
 
-/**
- * Pretty-print an HTTP response status and body (minimal skeleton)
- */
-function prettyPrintResponse(res: http.IncomingMessage, bodyBuf: Buffer): void {
-  prettyPrintResponseHeaders(res);
-  prettyPrintResponseBody(res, bodyBuf);
-}
-
 
 // Basic HTTP proxy server
 const server = http.createServer((clientReq, clientRes) => {
@@ -324,19 +360,22 @@ const server = http.createServer((clientReq, clientRes) => {
         const isStreaming = isStreamingResponse(proxyRes);
         const resChunks: Buffer[] = [];
         const eventCounter = { count: 0 }; // Track event numbers for streaming
+        const shouldCollapse = shouldCollapseResponse(clientReq.url ?? '');
 
         // Print headers immediately
         prettyPrintResponseHeaders(proxyRes);
-
-        if (isStreaming) {
+        
+        if (shouldCollapse) {
+          console.log(chalk.dim('Body: [collapsed]'));
+        } else if (isStreaming) {
           console.log(chalk.bold('Body:'));
         }
 
         proxyRes.on('data', chunk => {
-          if (isStreaming) {
+          if (!shouldCollapse && isStreaming) {
             // Parse and print SSE chunk immediately with event numbering
             parseAndPrintSSEChunk(chunk, eventCounter);
-          } else {
+          } else if (!shouldCollapse) {
             // For non-streaming responses, accumulate chunks
             resChunks.push(chunk);
           }
@@ -346,8 +385,8 @@ const server = http.createServer((clientReq, clientRes) => {
         });
 
         proxyRes.on('end', () => {
-          if (!isStreaming) {
-            // Only show body for non-streaming responses
+          if (!shouldCollapse && !isStreaming) {
+            // Only show body for non-streaming, non-collapsed responses
             const responseBody = Buffer.concat(resChunks);
             prettyPrintResponseBody(proxyRes, responseBody);
           }
