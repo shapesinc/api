@@ -9,6 +9,8 @@ This guide will walk you through setting up your own AI-powered Twitch bot using
 - 🎨 Generates images with `!imagine`
 - 🧠 Maintains conversation memory
 - ⚙️ Fully customizable behavior
+  
+![img](https://i.ibb.co/PXZZ4k3/Screenshot-2025-06-20-024732.png)
 
 ## Prerequisites
 
