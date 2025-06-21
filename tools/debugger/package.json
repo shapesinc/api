@@ -36,7 +36,10 @@
         "postbuild": "chmod +x dist/main.js"
     },
     "dependencies": {
-        "chalk": "^5.4.1"
+        "chalk": "^5.4.1",
+        "ink": "^6.0.0",
+        "ink-text-input": "^6.0.0",
+        "react": "^19.1.0"
     },
     "devDependencies": {
         "@eslint/js": "^9.28.0",

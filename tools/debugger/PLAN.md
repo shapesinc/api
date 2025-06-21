@@ -52,5 +52,34 @@ After proxy is working, we will
   - swap console logs for emitted events
   - build the Ink/React UI on top
 
+## Refactoring Progress
+
+### Phase 1: Foundation Cleanup ✅
+- [x] **Service Discovery Consolidation** - Eliminated ~70 lines of duplicated code
+  - Created unified `src/service-discovery.ts` module with single `discoverServiceUrl()` function
+  - Consolidated 4 similar functions (`getApiBaseUrl`, `getApiServerBaseUrl`, `getAuthBaseUrl`, `getSiteBaseUrl`) into centralized configuration
+  - Fixed URL inconsistency between api vs api-server debug URLs
+  - Moved TCP port checking logic into service discovery module
+  - Maintained backwards compatibility with legacy function exports
+
+- [ ] **Header Processing Deduplication** - ~48 lines duplicated between request/response handling
+- [ ] **Centralized Configuration Management** - Remove remaining hard-coded values
+
+### Phase 2: Separation of Concerns
+- [ ] **Event Emitter System** - Decouple logging from console output (critical for React/Ink)
+- [ ] **Pretty Printing Extraction** - Separate formatters from output handlers  
+- [ ] **Monolithic Handler Breakdown** - Split 80+ line proxy handler into focused functions
+- [ ] **Request/Response State Manager** - History tracking for UI components
+
+### Phase 3: UI Integration Preparation
+- [ ] **Streaming Logic Separation** - Decouple parsing from presentation
+- [ ] **Output Abstraction Layer** - Support console, React/Ink, and file outputs
+
+### Technical Debt Addressed
+- **Code Duplication**: Reduced from ~100+ lines to centralized patterns
+- **Configuration Scatter**: Service URLs now centralized in typed configuration
+- **Inconsistent URLs**: Fixed debug URL conflicts between service types
+- **Build Issues**: Removed unused `prettyPrintResponse` function
+
 ---
 *End of PLAN*
