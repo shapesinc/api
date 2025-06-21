@@ -24,7 +24,7 @@ export function formatResponseHeaders(res: http.IncomingMessage, requestNumber?:
     : '=== Response ===';
 
   return {
-    header: `\n           ${titleColor.bold.underline(headerText)}`,
+    header: '\n' + titleColor.bold.underline(headerText),
     status: chalk.bold('Status: ') + res.statusCode,
   };
 }
@@ -36,9 +36,9 @@ export function formatResponseBody(res: http.IncomingMessage, bodyBuf: Buffer): 
   if (!bodyBuf?.length) return null;
 
   const lines: string[] = [chalk.bold('Body:')];
-  const contentEncoding = res.headers['content-encoding'];
+  const contentEncoding = String(res.headers['content-encoding'] || '');
 
-  if (contentEncoding === 'gzip') {
+  if (contentEncoding === 'gzip' || contentEncoding.includes('gzip')) {
     try {
       const decompressed = zlib.gunzipSync(bodyBuf);
       const str = decompressed.toString('utf8');
@@ -54,7 +54,7 @@ export function formatResponseBody(res: http.IncomingMessage, bodyBuf: Buffer): 
         chalk.gray('Raw gzipped data length: ') + bodyBuf.length
       );
     }
-  } else if (contentEncoding === 'zstd') {
+  } else if (contentEncoding === 'zstd' || contentEncoding.includes('zstd')) {
     try {
       const decompressed = zlib.zstdDecompressSync(bodyBuf);
       const str = decompressed.toString('utf-8');

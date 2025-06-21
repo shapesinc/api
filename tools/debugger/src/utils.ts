@@ -18,8 +18,10 @@ export function shouldCollapseResponse(urlPath: string): boolean {
  * Check if response is streaming based on headers.
  */
 export function isStreamingResponse(res: http.IncomingMessage): boolean {
-  const contentType = res.headers['content-type'] || '';
+  const contentType = String(res.headers['content-type'] || '');
+  const transferEncoding = String(res.headers['transfer-encoding'] || '');
+  
   return config.get().content.streamingContentTypes.some(type =>
-    contentType.includes(type) && res.headers['transfer-encoding'] === 'chunked'
+    contentType.includes(type) && transferEncoding.includes('chunked')
   );
 }

@@ -83,7 +83,7 @@ ${chalk.gray('Available subcommands:')}
 
 ${chalk.gray('Pattern examples:')}
 ↳ ${chalk.yellow('/v1/models')} - Exact match
-↳ ${chalk.yellow('/v1/users/*')} - Prefix match`;
+↳ ${chalk.yellow('/v1/users/*')} - Prefix match (matches /v1/users/me, etc.)`;
     }
   }
 }

@@ -57,19 +57,21 @@ export function processProxyResponse(proxyRes: http.IncomingMessage, options: Re
   });
 
   proxyRes.on('end', () => {
+    const responseBody = Buffer.concat(resChunks);
+    
+    // Always store the response body in state for /view command, regardless of collapse status
+    const request = stateManager.getAllRequests().find(r => r.id === requestId);
+    if (request?.response && responseBody.length > 0) {
+      request.response.body = responseBody.toString('utf8');
+    }
+
+    // Only display the body if not collapsed and not streaming
     if (!shouldCollapse && !isStreaming) {
-      const responseBody = Buffer.concat(resChunks);
       const formattedBody = formatResponseBody(proxyRes, responseBody);
       if (formattedBody) {
         for (const line of formattedBody) {
           emitLog('response', line);
         }
-      }
-
-      // Update state with response body
-      const request = stateManager.getAllRequests().find(r => r.id === requestId);
-      if (request?.response) {
-        request.response.body = responseBody.toString('utf8');
       }
     }
 

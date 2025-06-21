@@ -37,28 +37,42 @@ export const LogEntry = ({ log }: LogEntryProps) => {
     }
   };
 
-  // Only show timestamp and arrow on Method and Status lines
-  const shouldShowTimestamp = () => {
-    return data.includes('Method: ') || data.includes('Status: ');
+  // Check if this is a request/response header line to show timestamp on next line
+  const isRequestResponseHeader = () => {
+    return data.includes('=== Request') || data.includes('=== Response');
   };
 
-  if (shouldShowTimestamp()) {
+  // Check if this is a system header (no timestamp needed)
+  const isSystemHeader = () => {
+    return data.includes('=== System');
+  };
+
+  if (isRequestResponseHeader()) {
+    // For request/response headers, show the header then timestamp on next line
     return (
-      <Box>
-        <Text color="gray">{formatTimestamp(log.timestamp)} </Text>
-        <Text color={getTypeColor(log.type)}>{getTypeIcon(log.type)} </Text>
-        <Text>{log.data}</Text>
+      <Box flexDirection="column">
+        <Text>{data}</Text>
+        <Box>
+          <Text color={getTypeColor(log.type)}>{getTypeIcon(log.type)} </Text>
+          <Text color="blueBright">{formatTimestamp(log.timestamp)}</Text>
+        </Box>
       </Box>
     );
   }
 
-  // For other lines (Headers, Body, etc.), indent more to show hierarchy
-  // Timestamp (8) + space + arrow + space = 11 characters of base indentation
-  const indentation = '           '; // 11 spaces
+  if (isSystemHeader()) {
+    // For system headers, just show the header without timestamp
+    return (
+      <Box>
+        <Text>{data}</Text>
+      </Box>
+    );
+  }
 
+  // For all other lines, just show the content without indentation
   return (
     <Box>
-      <Text>{indentation}{data}</Text>
+      <Text>{data}</Text>
     </Box>
   );
 };

@@ -18,7 +18,7 @@ export function formatRequest(req: http.IncomingMessage, bodyBuf: Buffer, reques
     : '=== Request ===';
 
   const formatted: FormattedRequest = {
-    header: `\n           ${chalk.cyan.bold.underline(headerText)}`,
+    header: '\n' + chalk.cyan.bold.underline(headerText),
     method: chalk.bold('Method: ') + req.method,
     url: chalk.bold('URL: ') + req.url,
   };

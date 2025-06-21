@@ -7,6 +7,8 @@ import { logEmitter } from '../events.js';
 import { stateManager } from '../state-manager.js';
 import { config } from '../config.js';
 import { handleCollapseCommand } from '../commands/collapse.js';
+import { handleListCommand } from '../commands/list.js';
+import { handleViewCommand } from '../commands/view.js';
 import type { LogEntry as LogEntryType, UIState } from './types.js';
 import chalk from 'chalk';
 
@@ -50,7 +52,14 @@ export const App = ({ baseUrl }: AppProps) => {
   }, []);
 
   const handleCommand = async (command: string) => {
-    // Add command to logs
+    // Add empty line and command to logs for visual separation
+    const emptyLineEntry: LogEntryType = {
+      id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+      timestamp: new Date(),
+      type: 'request',
+      data: '',
+    };
+
     const commandEntry: LogEntryType = {
       id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
       timestamp: new Date(),
@@ -58,9 +67,17 @@ export const App = ({ baseUrl }: AppProps) => {
       data: chalk.yellow(`> ${command}`),
     };
 
+    // Add system header
+    const systemHeaderEntry: LogEntryType = {
+      id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+      timestamp: new Date(),
+      type: 'request',
+      data: chalk.magenta.bold.underline('=== System ==='),
+    };
+
     setState(prevState => ({
       ...prevState,
-      logs: [...prevState.logs, commandEntry],
+      logs: [...prevState.logs, emptyLineEntry, commandEntry, systemHeaderEntry],
     }));
 
     // Handle commands
@@ -80,6 +97,8 @@ export const App = ({ baseUrl }: AppProps) => {
 ↳ ${chalk.green('/help')} - Show this help message
 ↳ ${chalk.green('/clear')} - Clear log history
 ↳ ${chalk.green('/stats')} - Show proxy statistics
+↳ ${chalk.green('/list [n]')} - List last n requests/responses (default: 5)
+↳ ${chalk.green('/view [n]')} - View full request/response for request n (default: latest)
 ↳ ${chalk.green('/collapse')} - Show current collapsed response patterns
 ↳ ${chalk.green('/collapse add <pattern>')} - Add URL pattern to collapse responses
 ↳ ${chalk.green('/collapse remove <pattern>')} - Remove URL pattern from collapsed responses
@@ -129,6 +148,38 @@ Use Ctrl+C to exit at any time.`,
           setState(prevState => ({
             ...prevState,
             logs: [...prevState.logs, statsEntry],
+          }));
+          break;
+        }
+
+        case 'list': {
+          const result = handleListCommand(args);
+          const listEntry: LogEntryType = {
+            id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+            timestamp: new Date(),
+            type: 'response',
+            data: result,
+          };
+
+          setState(prevState => ({
+            ...prevState,
+            logs: [...prevState.logs, listEntry],
+          }));
+          break;
+        }
+
+        case 'view': {
+          const resultLines = handleViewCommand(args);
+          const viewEntries: LogEntryType[] = resultLines.map(line => ({
+            id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+            timestamp: new Date(),
+            type: 'response',
+            data: line,
+          }));
+
+          setState(prevState => ({
+            ...prevState,
+            logs: [...prevState.logs, ...viewEntries],
           }));
           break;
         }

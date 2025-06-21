@@ -1,5 +1,11 @@
 #!/usr/bin/env node
 
+import { initializeConfig } from './init.js';
+
+// Load persistent configuration before importing modules that use it
+await initializeConfig();
+
+// Now import modules that depend on config
 import http from 'node:http';
 import { getApiServerBaseUrl } from './service-discovery.js';
 import { config } from './config.js';
@@ -7,12 +13,6 @@ import chalk from 'chalk';
 import { emitLog } from './events.js';
 import { handleProxyRequest } from './proxy-handler.js';
 import { startUI } from './ui/index.js';
-
-
-
-
-// Load persistent configuration
-await config.loadCollapsePatterns();
 
 // Determine upstream API base URL (local server or production)
 const baseUrl: string = await getApiServerBaseUrl();

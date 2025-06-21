@@ -1,4 +1,5 @@
 import { Box, Text } from 'ink';
+import { getEndpointInfo } from './utils.js';
 
 interface BannerProps {
   proxyPort: number;
@@ -7,28 +8,7 @@ interface BannerProps {
 }
 
 export const Banner = ({ proxyPort, forwardingTo, requestCount }: BannerProps) => {
-  const getEndpointInfo = () => {
-    let displayUrl: string;
-    let color: string;
-
-    if (forwardingTo.includes('api.shapes.inc')) {
-      displayUrl = 'prod';
-      color = 'green';
-    } else if (forwardingTo.includes('localhost:8080')) {
-      displayUrl = 'local';
-      color = 'blueBright';
-    } else if (forwardingTo.includes('localhost:8090')) {
-      displayUrl = 'debugger';
-      color = 'yellow';
-    } else {
-      displayUrl = forwardingTo.replace(/^https?:\/\//, '').replace(/\/v1$/, '');
-      color = 'magenta';
-    }
-
-    return { displayUrl, color };
-  };
-
-  const endpointInfo = getEndpointInfo();
+  const endpointInfo = getEndpointInfo(forwardingTo);
 
   return (
     <Box flexDirection="column" marginBottom={1}>
