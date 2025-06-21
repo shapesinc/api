@@ -57,7 +57,8 @@ export function handleProxyRequest(
   });
 
   // Log the request
-  const formatted = formatRequest(clientReq, requestBody);
+  const requestNumber = stateManager.getRequestNumber(requestId);
+  const formatted = formatRequest(clientReq, requestBody, requestNumber);
   emitLog('request', formatted.header);
   emitLog('request', formatted.method);
   emitLog('request', formatted.url);

@@ -12,9 +12,13 @@ export interface FormattedRequest {
 /**
  * Format HTTP request data.
  */
-export function formatRequest(req: http.IncomingMessage, bodyBuf: Buffer): FormattedRequest {
+export function formatRequest(req: http.IncomingMessage, bodyBuf: Buffer, requestNumber?: number): FormattedRequest {
+  const headerText = requestNumber
+    ? `=== Request ${requestNumber} ===`
+    : '=== Request ===';
+
   const formatted: FormattedRequest = {
-    header: chalk.cyan.bold.underline('\n=== Request ==='),
+    header: `\n           ${chalk.cyan.bold.underline(headerText)}`,
     method: chalk.bold('Method: ') + req.method,
     url: chalk.bold('URL: ') + req.url,
   };

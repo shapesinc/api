@@ -1,4 +1,5 @@
 import chalk from 'chalk';
+import { loadCollapsePatterns } from './config/persistence.js';
 
 export interface DebuggerConfig {
   ports: {
@@ -66,7 +67,7 @@ export const defaultConfig: DebuggerConfig = {
     compressionTypes: ['gzip', 'zstd'],
   },
   responses: {
-    collapsedPatterns: ['/users/*'],
+    collapsedPatterns: [], // Will be loaded from persistent storage
   },
   state: {
     maxHistorySize: 200,
@@ -87,6 +88,39 @@ export function getConfig(): DebuggerConfig {
 }
 
 /**
+ * Dynamic configuration that can be updated at runtime
+ */
+class DynamicConfig {
+  private config: DebuggerConfig;
+
+  constructor() {
+    this.config = getConfig();
+  }
+
+  /**
+   * Get current configuration
+   */
+  get(): DebuggerConfig {
+    return this.config;
+  }
+
+  /**
+   * Update collapse patterns
+   */
+  updateCollapsePatterns(patterns: string[]): void {
+    this.config.responses.collapsedPatterns = patterns;
+  }
+
+  /**
+   * Load collapse patterns from persistent storage
+   */
+  async loadCollapsePatterns(): Promise<void> {
+    const patterns = await loadCollapsePatterns();
+    this.updateCollapsePatterns(patterns);
+  }
+}
+
+/**
  * Current active configuration
  */
-export const config = getConfig();
+export const config = new DynamicConfig();

@@ -20,7 +20,7 @@ export function formatJson(obj: Record<string, unknown>, { isResponse = false }:
       const parts = trimmed.match(/^"role":\s*"([^"]+)"(,?)$/);
       if (parts) {
         const [, role, comma] = parts;
-        const colorFn = config.ui.roleColors[role] || chalk.white;
+        const colorFn = config.get().ui.roleColors[role] || chalk.white;
         lines.push(indent + chalk.gray('"role": ') + colorFn(`"${role}"`) + (comma || ''));
       } else {
         lines.push(indent + chalk.gray(trimmed));
@@ -83,7 +83,7 @@ export function formatJson(obj: Record<string, unknown>, { isResponse = false }:
       const parts = trimmed.match(/^"finish_reason":\s*"([^"]+)"(,?)$/);
       if (parts) {
         const [, reason, comma] = parts;
-        const colorFn = config.ui.finishReasonColors[reason] || chalk.red;
+        const colorFn = config.get().ui.finishReasonColors[reason] || chalk.red;
         lines.push(indent + chalk.gray('"finish_reason": ') + colorFn(`"${reason}"`) + (comma || ''));
       } else {
         lines.push(indent + chalk.gray(trimmed));

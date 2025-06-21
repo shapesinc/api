@@ -33,7 +33,7 @@ export function createRequestOptions(clientReq: http.IncomingMessage, upstreamUr
   const headers = prepareHeaders(clientReq, upstreamUrl);
   const port = upstreamUrl.port
     ? Number(upstreamUrl.port)
-    : (upstreamUrl.protocol === 'https:' ? config.ports.defaultHttps : config.ports.defaultHttp);
+    : (upstreamUrl.protocol === 'https:' ? config.get().ports.defaultHttps : config.get().ports.defaultHttp);
 
   const baseOptions = {
     protocol: upstreamUrl.protocol,

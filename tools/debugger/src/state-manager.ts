@@ -3,6 +3,7 @@ import { config } from './config.js';
 
 export interface RequestState {
   id: string;
+  requestNumber: number;
   timestamp: Date;
   request: {
     method: string;
@@ -23,6 +24,7 @@ export interface RequestState {
 class StateManager {
   private requests: RequestState[] = [];
   private maxSize: number;
+  private requestCounter: number = 0;
 
   constructor(maxSize: number = 200) {
     this.maxSize = maxSize;
@@ -38,8 +40,11 @@ class StateManager {
     body?: string;
   }): string {
     const id = crypto.randomUUID();
+    this.requestCounter++;
+    
     const request: RequestState = {
       id,
+      requestNumber: this.requestCounter,
       timestamp: new Date(),
       request: data,
     };
@@ -108,12 +113,20 @@ class StateManager {
   }
 
   /**
+   * Get request number by ID.
+   */
+  getRequestNumber(id: string): number | undefined {
+    return this.requests.find(r => r.id === id)?.requestNumber;
+  }
+
+  /**
    * Clear all history.
    */
   clear(): void {
     this.requests = [];
+    this.requestCounter = 0;
   }
 }
 
 // Export singleton instance
-export const stateManager = new StateManager(config.state.maxHistorySize);
+export const stateManager = new StateManager(config.get().state.maxHistorySize);

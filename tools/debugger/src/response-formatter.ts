@@ -13,14 +13,18 @@ export interface FormattedResponse {
 /**
  * Format response headers with status code coloring.
  */
-export function formatResponseHeaders(res: http.IncomingMessage): FormattedResponse {
+export function formatResponseHeaders(res: http.IncomingMessage, requestNumber?: number): FormattedResponse {
   const code = res.statusCode ?? 200;
-  const titleColor = code >= 200 && code < 300 ? config.ui.statusCodeColors.success
-                    : code >= 300 && code < 400 ? config.ui.statusCodeColors.redirect
-                    : config.ui.statusCodeColors.error;
+  const titleColor = code >= 200 && code < 300 ? config.get().ui.statusCodeColors.success
+                    : code >= 300 && code < 400 ? config.get().ui.statusCodeColors.redirect
+                    : config.get().ui.statusCodeColors.error;
+
+  const headerText = requestNumber
+    ? `=== Response ${requestNumber} ===`
+    : '=== Response ===';
 
   return {
-    header: titleColor.bold.underline('\n=== Response ==='),
+    header: `\n           ${titleColor.bold.underline(headerText)}`,
     status: chalk.bold('Status: ') + res.statusCode,
   };
 }

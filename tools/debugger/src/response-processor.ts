@@ -30,7 +30,8 @@ export function processProxyResponse(proxyRes: http.IncomingMessage, options: Re
   });
 
   // Print headers immediately
-  const responseHeaders = formatResponseHeaders(proxyRes);
+  const requestNumber = stateManager.getRequestNumber(requestId);
+  const responseHeaders = formatResponseHeaders(proxyRes, requestNumber);
   emitLog('response', responseHeaders.header);
   emitLog('response', responseHeaders.status);
   processHeaders(proxyRes.headers || {});

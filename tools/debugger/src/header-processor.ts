@@ -22,7 +22,7 @@ export function processHeaders(headers: Record<string, string | string[] | undef
     const lower = name.toLowerCase();
     
     // Mask sensitive tokens
-    if (config.headers.sensitiveHeaders.includes(lower)) {
+    if (config.get().headers.sensitiveHeaders.includes(lower)) {
       if (lower === 'authorization') {
         const parts = String(value).split(' ');
         if (parts.length > 1) {
@@ -39,7 +39,7 @@ export function processHeaders(headers: Record<string, string | string[] | undef
     
     // Highlight important headers
     const important = lower === 'authorization' || lower === 'content-type' ||
-      config.headers.importantPrefixes.some(prefix => lower.startsWith(prefix));
+      config.get().headers.importantPrefixes.some(prefix => lower.startsWith(prefix));
     const colorFn = important ? chalk.magenta : chalk.gray;
     emitLog('request', colorFn(`  ${name}: ${display}`));
   }

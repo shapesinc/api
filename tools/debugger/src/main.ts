@@ -6,9 +6,13 @@ import { config } from './config.js';
 import chalk from 'chalk';
 import { emitLog } from './events.js';
 import { handleProxyRequest } from './proxy-handler.js';
+import { startUI } from './ui/index.js';
 
 
 
+
+// Load persistent configuration
+await config.loadCollapsePatterns();
 
 // Determine upstream API base URL (local server or production)
 const baseUrl: string = await getApiServerBaseUrl();
@@ -27,9 +31,13 @@ const server = http.createServer((clientReq, clientRes) => {
 });
 
 // Start listening
-server.listen(config.ports.proxy, () => {
+server.listen(config.get().ports.proxy, () => {
+  // Log initial startup messages
   emitLog('request', chalk.magenta('Debugger proxy v1.0.0'));
-  emitLog('request', `${chalk.magenta('→ Listening on  :')} ${chalk.yellow(`http://localhost:${config.ports.proxy}`)}`);
+  emitLog('request', `${chalk.magenta('→ Listening on  :')} ${chalk.yellow(`http://localhost:${config.get().ports.proxy}`)}`);
   emitLog('request', `${chalk.magenta('→ Forwarding to :')} ${chalk.yellow(baseUrl)}`);
-  // TODO: initialize CLI UI (Ink/React) here
+  emitLog('request', chalk.cyan('UI initialized. Type /help for commands.'));
+  
+  // Start React/Ink UI
+  startUI(baseUrl);
 });

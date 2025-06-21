@@ -7,16 +7,8 @@ export interface LogEvent {
 
 export const logEmitter = new EventEmitter();
 
-// Simple console logger that listens to events
-logEmitter.on('log', (event: LogEvent) => {
-  if (event.type === 'chunk') {
-    // Direct output for streaming chunks
-    console.log(event.data);
-  } else {
-    // For other events, just pass through the formatted data
-    console.log(event.data);
-  }
-});
+// Events are now handled by the React/Ink UI
+// No console fallback needed
 
 // Helper to emit log events
 export function emitLog(type: LogEvent['type'], data: unknown): void {
