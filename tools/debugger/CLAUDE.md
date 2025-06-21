@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+1.  Don’t delete comments unless the code they relate to has been deleted.
+2.  Don’t delete code that is not related to the current changes.
+3.  Don’t commit this file or any generated code to the repository.
+
 ## Project Overview
 
 This is `@shapesinc/debugger` - a CLI tool that proxies Shapes API traffic and provides a React/Ink-driven UI for live request/response logging and interactive slash commands. The tool acts as a development proxy, forwarding requests to upstream Shapes API servers while providing detailed logging and debugging capabilities.
@@ -37,7 +41,7 @@ npm run start           # Run built version from dist/main.js
 ### Key Features
 
 - **Environment-based routing**: Automatically discovers and routes to available servers
-  - Debug proxy: `http://localhost:8090/v1` 
+  - Debug proxy: `http://localhost:8090/v1`
   - Dev server: `http://localhost:8080/v1`
   - Production: `https://api.shapes.inc/v1`
 - **Token masking**: Automatically masks authorization tokens in logs (shows only last 4 chars)

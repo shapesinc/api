@@ -1,94 +1,25 @@
-import net from 'node:net'
-import { URL } from 'node:url'
+import type http from 'node:http';
+import { config } from './config.js';
 
 /**
- * Check if a TCP port is accepting connections.
+ * Check if a URL path matches any collapsed response patterns.
  */
-function isTcpPortOpen(host: string, port: number, timeoutMs: number): Promise<boolean> {
-    return new Promise(resolve => {
-        const sock = new net.Socket()
-        let settled = false
-        const onDone = (up: boolean) => {
-            if (!settled) {
-                settled = true
-                sock.destroy()
-                resolve(up)
-            }
-        }
-        sock.setTimeout(timeoutMs)
-        sock.once('connect', () => onDone(true))
-        sock.once('timeout', () => onDone(false))
-        sock.once('error', () => onDone(false))
-        sock.connect(port, host)
-    })
-}
-
-interface BaseUrlOptions {
-    prodUrl: string;
-    devUrl: string;
-    debugUrl: string;
-}
-
-async function getBaseUrl({
-    prodUrl,
-    devUrl,
-    debugUrl,
-}: BaseUrlOptions): Promise<string> {
-    try {
-        const debugHost = debugUrl ? new URL(debugUrl) : undefined;
-        const isDebugUp = debugHost ? await isTcpPortOpen(debugHost.hostname, Number(debugHost.port) || (debugHost.protocol === 'https:' ? 443 : 80), 200) : false;
-        const devHost = devUrl ? new URL(devUrl) : undefined;
-        const isDevUp = devHost ? await isTcpPortOpen(devHost.hostname, Number(devHost.port) || (devHost.protocol === 'https:' ? 443 : 80), 200) : false;
-        return isDebugUp ? debugUrl : isDevUp ? devUrl : prodUrl
-    } catch {
-        return prodUrl;
+export function shouldCollapseResponse(urlPath: string): boolean {
+  return config.responses.collapsedPatterns.some(pattern => {
+    if (pattern.endsWith('/*')) {
+      const prefix = pattern.slice(0, -2);
+      return urlPath.startsWith(prefix);
     }
+    return urlPath === pattern;
+  });
 }
 
-/*
-Autodiscover the API server base URL
-Will discover both local server if available
-*/
-export async function getApiServerBaseUrl(): Promise<string> {
-    return await getBaseUrl({
-        prodUrl: 'https://api.shapes.inc/v1',
-        devUrl: 'http://localhost:8080/v1',
-        debugUrl: 'http://localhost:8080/v1',
-    })
-}
-
-/*
-Autodiscover the API base URL
-Will discover both local server and a debug proxy if available
-*/
-export async function getApiBaseUrl(): Promise<string> {
-    return await getBaseUrl({
-        prodUrl: 'https://api.shapes.inc/v1',
-        devUrl: 'http://localhost:8080/v1',
-        debugUrl: 'http://localhost:8090/v1',
-    })
-}
-
-/*
-Autodiscover the Auth base URL
-Will discover both local server and a debug proxy if available
-*/
-export async function getAuthBaseUrl(): Promise<string> {
-    return await getBaseUrl({
-        prodUrl: 'https://api.shapes.inc/auth',
-        devUrl: 'http://localhost:8080/auth',
-        debugUrl: 'http://localhost:8090/auth',
-    })
-}
-
-/*
-Autodiscover the Site base URL
-Will discover both local server and a debug proxy if available
-*/
-export async function getSiteBaseUrl(): Promise<string> {
-    return await getBaseUrl({
-        prodUrl: 'https://shapes.inc',
-        devUrl: 'http://localhost:3000',
-        debugUrl: 'http://localhost:3000',
-    })
+/**
+ * Check if response is streaming based on headers.
+ */
+export function isStreamingResponse(res: http.IncomingMessage): boolean {
+  const contentType = res.headers['content-type'] || '';
+  return config.content.streamingContentTypes.some(type =>
+    contentType.includes(type) && res.headers['transfer-encoding'] === 'chunked'
+  );
 }
