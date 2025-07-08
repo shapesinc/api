@@ -1,7 +1,3 @@
-<!--
-This file contains memory for the Codex CLI assistant. It is ignored by Git and
-will not be committed to the repository.
--->
 # Codex Memory
 
 These guidelines should be applied by the Codex assistant when working on this project:

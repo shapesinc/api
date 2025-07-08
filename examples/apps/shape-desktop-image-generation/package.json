@@ -1,0 +1,85 @@
+{
+  "name": "assetor-shape",
+  "version": "1.0.1",
+  "description": "Professional image generation tool powered by AI",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win",
+    "dist:all": "npm run dist && npx electron-builder --win portable",
+    "prebuild": "npm install --only=production",
+    "postbuild": "npm install electron-builder --save-dev",
+    "build": "npm run prebuild && npm run postbuild && npx electron-builder install-app-deps && npm run dist:all"
+  },
+  "author": "Shapes, Inc <hi@shapes.inc>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kiyosh11/assetor"
+  },
+  "homepage": "https://shapes.inc/",
+  "bugs": "https://github.com/kiyosh11/assetor/issues",
+  "keywords": [
+    "image generation",
+    "AI",
+    "graphics",
+    "design"
+  ],
+  "devDependencies": {
+    "electron": "^25.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "dependencies": {
+    "electron-squirrel-startup": "^1.0.1",
+    "electron-store": "^8.1.0"
+  },
+  "build": {
+    "appId": "inc.shapes.assetor",
+    "productName": "Assetor",
+    "copyright": "Copyright © 2023 Shapes, Inc",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "**/*",
+      "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}",
+      "!**/node_modules/*/{test,__tests__,tests,powered-test,example,examples}",
+      "!**/node_modules/*.d.ts",
+      "!**/*.{iml,o,hprof,orig,pyc,pyo,rbc,swp,csproj,sln,xproj}",
+      "!**/._*",
+      "!**/{.DS_Store,.git,.hg,.svn,CVS,RCS,SCCS,.gitignore,.gitattributes}",
+      "!**/{__pycache__,thumbs.db,.flowconfig,.idea,.vs,.nyc_output}",
+      "!**/{appveyor.yml,.travis.yml,circle.yml}",
+      "!**/{npm-debug.log,yarn.lock,.yarn-integrity,.yarn-metadata.json}"
+    ],
+    "asar": true,
+    "asarUnpack": [
+      "**/node_modules/electron-store/**"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.ico",
+      "publisherName": "Shapes, Inc",
+      "verifyUpdateCodeSignature": false,
+      "rfc3161TimeStampServer": "http://timestamp.digicert.com"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": true,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Assetor",
+      "artifactName": "Assetor_Setup_${version}.exe"
+    },
+    "portable": {
+      "artifactName": "Assetor_Portable_${version}.exe"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "shapes-inc",
+      "repo": "assetor"
+    }
+  }
+}

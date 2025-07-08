@@ -1,0 +1,38 @@
+{
+    "compilerOptions": {
+        /* Build Configuration */
+        "target": "ESNext",
+        "module": "NodeNext",
+        "declaration": true,
+        "declarationMap": true,
+        "sourceMap": true,
+        "incremental": true,
+        "tsBuildInfoFile": "./build/.tsbuildinfo",
+        "jsx": "react-jsx",
+
+        /* Module Resolution */
+        "moduleResolution": "NodeNext",
+        "moduleDetection": "force",
+        "baseUrl": ".",
+        "rootDir": "./src",
+        "outDir": "./dist",
+        "allowSyntheticDefaultImports": true,
+        "resolveJsonModule": true,
+        "isolatedModules": true,
+        "verbatimModuleSyntax": true,
+        "esModuleInterop": true,
+
+        /* Type Checking */
+        "strict": true,
+        "skipLibCheck": true,
+        "forceConsistentCasingInFileNames": true,
+        "noUnusedLocals": true,
+        "noUnusedParameters": true,
+        "noFallthroughCasesInSwitch": true,
+        "noUncheckedSideEffectImports": true,
+        "noImplicitReturns": true,
+        "noImplicitAny": true
+    },
+    "include": ["./src/**/*"],
+    "exclude": ["node_modules", "dist"]
+}

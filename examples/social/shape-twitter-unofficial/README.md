@@ -2,7 +2,7 @@
 
 An automated X (formerly Twitter) interaction bot that monitors and responds to DMs and mentions using the Shapes.inc AI API.
 
-note: this is not base on official twitter dev docs
+## **caution: this project is not using the twitter api and might result to getting you suspended. use without caution and at your own risk.**
 
 ## Overview
 

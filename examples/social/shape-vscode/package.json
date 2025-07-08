@@ -1,0 +1,35 @@
+{
+    "name": "shapes-vs",
+    "displayName": "Shapes Chat",
+    "description": "Chat with Shapes AI agents directly in VS Code",
+    "version": "0.0.2",
+    "engines": {
+        "vscode": "^1.70.0"
+    },
+    "categories": [
+        "Other"
+    ],
+    "activationEvents": [
+        "onCommand:shapeschat.openChat"
+    ],
+    "main": "./extension.js",
+    "contributes": {
+        "commands": [
+            {
+                "command": "shapeschat.openChat",
+                "title": "Shapes Chat: Open Chat"
+            }
+        ]
+    },
+    "scripts": {
+        "package": "vsce package"
+    },
+    "devDependencies": {
+        "vsce": "^2.15.0"
+    },
+    "dependencies": {
+        "dotenv": "^16.5.0",
+        "node-fetch": "^2.7.0",
+        "openai": "^4.98.0"
+    }
+}

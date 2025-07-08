@@ -1,94 +1,106 @@
-# Twitch Bot with Shapes API Integration
+# Shapes Twitch Bot - Setup Guide
 
-This project creates a Twitch chat bot that responds to user commands by using the Shapes API to generate responses.
+This guide will walk you through setting up your own AI-powered Twitch bot using the Shapes API. No coding experience required!
 
-## Features
+## What This Bot Does
 
-- Connects to Twitch chat via WebSocket
-- Responds to `!ask` and `!shape` commands
-- Processes user prompts using your custom Shapes API model/Shape Username
-- Sends responses back to the Twitch chat
+- 🤖 Connects your Shape to Twitch chat
+- 💬 Responds to messages based on your chosen mode
+- 🎨 Generates images with `!imagine`
+- 🧠 Maintains conversation memory
+- ⚙️ Fully customizable behavior
+  
+![img](https://i.ibb.co/PXZZ4k3/Screenshot-2025-06-20-024732.png)
 
 ## Prerequisites
 
-- Node.js (v16 or newer)
-- npm or yarn
-- A Twitch account
-- A Shapes Inc account with an API key
-## Setup Instructions
+1. [Node.js](https://nodejs.org/) (v18 or newer)
+2. Twitch account (for your bot)
+3. Shapes account (free)
 
-### 1. Clone the repository
+## Step-by-Step Setup
 
+### 1. Get Your Tokens
+
+#### Shapes API Key
+1. Go to [shapes.inc/developer](https://shapes.inc/developer)
+2. Create account or log in
+3. Create a new Shape 
+4. Go to "API Keys" and create a new key
+5. Copy the API key
+
+#### Twitch Bot Token
+1. Go to [twitchtokengenerator.com](https://twitchtokengenerator.com/)
+2. Select "Bot Chat Token"
+3. Log in with your bot account
+4. Copy the generated token (`ACCESS TOKEN` and add it after `oauth:`)
+
+### 2. Install Dependencies
+
+1. Open terminal in your project folder
+2. Run: `npm install`
+
+### 3. Start the Bot
+
+Run this command in your terminal:
 ```bash
-git clone https://github.com/shapesinc/api-examples.git
-cd shape-twitch
+npm start
 ```
 
-### 2. Install dependencies
-
-```bash
-npm install 
+You should see:
+```
+Connecting to #your_channel_name
+[BOT]: 🤖 ShapeBot activated! Mode: COMMAND_ONLY
 ```
 
-### 3. Configure environment variables
+## Configuration Options
 
-Create a `.env` file in the root directory with the following variables:
+Customize your bot by editing the `.env` file:
 
-```
-SHAPESINC_API_KEY=your_shapes_api_key
-SHAPESINC_SHAPE_USERNAME=your_shapes_username
-TWITCH_OAUTH=your_twitch_oauth_token
-TWITCH_CHANNEL=your_twitch_channel_name
-```
+| Setting | Values | Description |
+|---------|--------|-------------|
+| `RESPONSE_MODE` | `COMMAND_ONLY` (default), `ALL_MESSAGES`, `SELECTIVE` | How the bot responds to messages |
+| `SELECTIVE_CHANCE` | 0.1-1.0 | Probability of responding in SELECTIVE mode |
+| `COOLDOWN_SECONDS` | 1-60 | Delay between bot responses |
+| `MAX_RESPONSE_LENGTH` | 100-1000 | Max characters in responses |
 
-### 4. Obtain Twitch OAuth Token
+## Available Commands
 
-To get your Twitch OAuth token:
+View all commands with `!help` in chat:
 
-1. Visit https://antiscuff.com/oauth/
-2. Sign in with your Twitch account
-3. Authorize the application
-4. Copy the OAuth token (it should start with "oauth:")
-   - Note: Remove the prefix OAuth: 
-
-### 5. Running the bot
-
-```bash
-npm run start
-```
-
-## Usage
-
-Once the bot is running and connected to your Twitch channel, users can interact with it using these commands:
-
-- `!ask [question]` - The bot will process the question and respond in the chat
-- `!shape [prompt]` - Alternative command that does the same thing
-
-
+| Command | Example | Description |
+|---------|---------|-------------|
+| `!ask` | `!ask what's the weather?` | Ask a question |
+| `!imagine` | `!imagine cyberpunk city` | Generate an image |
+| `!reset` | `!reset` | Reset long-term memory |
+| `!wack` | `!wack` | Clear short-term memory |
+| `!info` | `!info` | Show Shape info |
+| `!web` | `!web latest news` | Web search |
+| `!help` | `!help` | Show all commands |
 
 ## Troubleshooting
 
-### Common Issues
+**Bot won't start:**
+- Verify all tokens in `.env` are correct
+- Ensure Node.js v18+ is installed
+- Check for typos in your `.env` file
 
-1. **Connection failures**: Make sure your OAuth token is valid and hasn't expired
-2. **API errors**: Verify your Shapes API key and username are correct
-3. **No responses**: Ensure your bot has joined the correct Twitch channel
+**No responses in chat:**
+- Make sure response mode matches your expectations
+- Check bot has moderator permissions in Twitch
+- Verify your Shape is active at shapes.inc
 
-### Debugging
+**Rate limit errors:**
+- Increase `COOLDOWN_SECONDS` in `.env`
+- Switch to `COMMAND_ONLY` mode
+- Contact shapes.inc for rate limit increase
 
-The application logs all incoming messages from Twitch and any errors encountered. Check these logs to identify issues.
+## Support
 
+For additional help:
+- [Shapes API Documentation](https://api.shapes.inc/docs)
+- [Twitch Dev Forums](https://discuss.dev.twitch.tv/)
+- [Create GitHub Issue]
 
-## How It Works
+> Pro Tip: Start with `COMMAND_ONLY` mode and gradually experiment with other modes once everything works!
 
-1. The bot checks/listen for commands with !shape and !ask and automatically process the message to Shape
-2. The content is sent to the Shapes API, which processes it through your shape
-3. The response is posted back to Twitch Chat as a reply
-
-## License
-
-This project is licensed under the MIT License - see [LICENSE](https://github.com/shapesinc/api/blob/main/license) for details.
-
-
-## Contribution
-Contributing Feel free to submit issues or pull requests to improve the bot. Ensure any changes are tested and maintain compatibility with the Twitch Application and Shapes API.

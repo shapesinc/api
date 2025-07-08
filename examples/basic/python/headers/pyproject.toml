@@ -17,6 +17,7 @@ dependencies = [
     "annotated-types==0.7.0",
     "anyio==4.9.0",
     "certifi==2025.4.26",
+    "colorama==0.4.6",
     "distro==1.9.0",
     "h11==0.16.0",
     "httpcore==1.0.9",

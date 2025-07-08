@@ -123,7 +123,7 @@ response = shapes_client.chat.completions.create(
     messages=[
         {"role": "user", "content": "Hello"}
     ],
-    headers={
+    extra_headers={
         "X-User-Id": "user123",
         "X-Channel-Id": "channel456"
     }
